@@ -3690,6 +3690,23 @@
         }
       }
     },
+    "%@%% left": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%% restants"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余%@%%"
+          }
+        }
+      }
+    },
     "%@ left": {
       "extractionState": "manual",
       "localizations": {

@@ -91,6 +91,10 @@ final class LocalizationTests: XCTestCase {
             "12% 已用 · 88% 剩余"
         )
         XCTAssertEqual(
+            percentWindow(0.66).summary(asRemaining: true, locale: zhHans),
+            "剩余34%"
+        )
+        XCTAssertEqual(
             LimitWindow(id: "w", label: "Requests", used: 8).summary(locale: zhHans),
             "已用 8"
         )
