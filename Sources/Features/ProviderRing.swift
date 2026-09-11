@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The ring around a provider glyph: a grey track with a coloured arc that
-/// starts at 12 o'clock and sweeps clockwise by the fraction used.
+/// starts at 12 o'clock and sweeps clockwise by the fraction remaining.
 ///
 /// When that provider is doing something right now, a second, much thinner arc
 /// appears *inside* the ring, in the gap between the glyph and the track. It is
@@ -18,6 +18,11 @@ struct ProviderRing: View {
     /// is technically true and practically a lie.
     var isBlocked: Bool = false
     var activity: ActivitySummary?
+    /// Codex has its own task animation; other providers retain this visual.
+    var showsActivityArc: Bool = true
+    /// Codex's quota is drawn from the user's point of view; other providers
+    /// keep their original used-fraction arc.
+    var showsRemaining: Bool = false
     /// A fetch this cell asked for, in flight.
     var isRefreshing: Bool = false
     var localPerformance: LocalModelPerformance?
@@ -35,20 +40,35 @@ struct ProviderRing: View {
     private var band: UsageBand {
         isBlocked ? .exhausted : UsageBand.band(for: usedFraction ?? 0)
     }
-    private var sweep: CGFloat { CGFloat(min(max(usedFraction ?? 0, 0), 1)) }
+    private var sweep: CGFloat? {
+        usedFraction.flatMap { fraction in
+            showsRemaining ? Percent.remainingFraction(for: fraction)
+                : (fraction.isFinite ? min(max(fraction, 0), 1) : nil)
+        }.map { CGFloat($0) }
+    }
 
     private var weeklyBand: UsageBand {
         isBlocked ? .exhausted : UsageBand.band(for: weeklyFraction ?? 0)
     }
-    private var weeklySweep: CGFloat { CGFloat(min(max(weeklyFraction ?? 0, 0), 1)) }
+    private var weeklySweep: CGFloat? {
+        weeklyFraction.flatMap { fraction in
+            showsRemaining ? Percent.remainingFraction(for: fraction)
+                : (fraction.isFinite ? min(max(fraction, 0), 1) : nil)
+        }.map { CGFloat($0) }
+    }
 
     /// Inside, the weekly ring and the working indicator want the same band —
     /// 1.03pt apart, one of them spinning. Rather than shave both until neither
     /// is legible, the transient one wins: while a provider is working that is
     /// the more urgent fact, and the week is still a hover away. Outside there
     /// is no contest, so nothing is given up there.
-    private var isWorking: Bool {
-        weeklyRing == .inside && activity != nil && activity?.state != .idle
+    static func shouldDrawWeeklyRing(weeklyRing: WeeklyRing,
+                                     weeklyFraction: Double?,
+                                     activity: ActivitySummary?,
+                                     showsActivityArc: Bool) -> Bool {
+        guard weeklyRing.radius != nil, weeklyFraction != nil else { return false }
+        guard showsActivityArc, weeklyRing == .inside, let activity else { return true }
+        return activity.state == .idle
     }
 
     var body: some View {
@@ -64,7 +84,7 @@ struct ProviderRing: View {
                     Circle()
                         .strokeBorder(localPerformance.band.color, lineWidth: NotchLayout.progressStroke)
                         .animation(NotchMotion.reading, value: localPerformance.band)
-                } else if usedFraction != nil {
+                } else if let sweep {
                     Circle()
                         .inset(by: NotchLayout.trackStroke / 2)
                         .trim(from: 0, to: sweep)
@@ -93,7 +113,12 @@ struct ProviderRing: View {
                 // the case this exists for, and painting them the same colour
                 // would hide it. Held slightly back in opacity so the headline
                 // stays the one the eye lands on first.
-                if let radius = weeklyRing.radius, weeklyFraction != nil, !isWorking {
+                if let radius = weeklyRing.radius,
+                   let weeklySweep,
+                   Self.shouldDrawWeeklyRing(weeklyRing: weeklyRing,
+                                             weeklyFraction: weeklyFraction,
+                                             activity: activity,
+                                             showsActivityArc: showsActivityArc) {
                     let inset = NotchLayout.ringDiameter / 2 - radius
 
                     // A track of its own, for the same reason the headline has
@@ -129,7 +154,7 @@ struct ProviderRing: View {
             }
             .opacity(isStale ? (reduceTransparency ? 0.75 : 0.45) : 1)
 
-            if let activity, activity.state != .idle {
+            if showsActivityArc, let activity, activity.state != .idle {
                 ActivityArc(summary: activity)
             }
         }
@@ -223,8 +248,14 @@ private struct ActivityArc: View {
 struct ProviderCell: View {
     let snapshot: ProviderSnapshot
     var activity: ActivitySummary?
+    var showsActivityArc: Bool = true
+    var showsRemaining: Bool = false
     var isRefreshing: Bool = false
     var weeklyRing: WeeklyRing = .off
+
+    private var effectiveWeeklyRing: WeeklyRing {
+        snapshot.providerID.hasPrefix("codex") ? .inside : weeklyRing
+    }
 
     /// A dash, not "0%": nothing read is not the same as nothing used.
     private var readingText: String {
@@ -239,10 +270,12 @@ struct ProviderCell: View {
                 isStale: snapshot.status.isStale || !snapshot.hasReading,
                 isBlocked: snapshot.block != nil,
                 activity: activity,
+                showsActivityArc: showsActivityArc,
+                showsRemaining: showsRemaining,
                 isRefreshing: isRefreshing,
                 localPerformance: snapshot.localPerformance,
                 weeklyFraction: snapshot.hasReading ? snapshot.weeklyFraction : nil,
-                weeklyRing: weeklyRing
+                weeklyRing: effectiveWeeklyRing
             )
             Text(readingText)
                 .font(Typography.percent)
@@ -262,6 +295,17 @@ struct ProviderCell: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(snapshot.localModel.map {
             "\($0.brand.map { "\($0.displayName), " } ?? "")\($0.name), \(snapshot.displayName) local, \(snapshot.showsLocalPerformance ? (snapshot.localPerformance.map { "Last generation speed \($0.speedText), \($0.band.label)" } ?? "Speed not measured") : "Loaded"), \($0.detail)\(activity?.state == .working ? ", Thinking" : "")"
-        } ?? "\(snapshot.displayName), \(readingText)")
+        } ?? "\(snapshot.displayName), \(accessibilityReadingText)")
+    }
+
+    private var accessibilityReadingText: String {
+        guard snapshot.hasReading, let headline = snapshot.headline else {
+            return L10n.t("No reading")
+        }
+        var readings = ["\(headline.label): \(headline.summary(asRemaining: showsRemaining))"]
+        if let weekly = snapshot.weeklyWindow {
+            readings.append("\(weekly.label): \(weekly.summary(asRemaining: showsRemaining))")
+        }
+        return readings.joined(separator: " · ")
     }
 }

@@ -135,21 +135,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// nothing metered. Pure, so the wording can be tested without a menu.
     static func detailLines(for snapshot: ProviderSnapshot, now: Date) -> [String] {
         let now = now
+        let asRemaining = snapshot.providerID.hasPrefix("codex")
         if let block = snapshot.block {
             var lines = [block.summary(now: now)]
-            lines += snapshot.windows.map { windowLine(for: $0, now: now) }
+            lines += snapshot.windows.map { windowLine(for: $0, now: now, asRemaining: asRemaining) }
             return lines
         }
         if let message = snapshot.statusMessage {
             return [message]
         }
-        return snapshot.windows.map { windowLine(for: $0, now: now) }
+        return snapshot.windows.map { windowLine(for: $0, now: now, asRemaining: asRemaining) }
     }
 
     /// One metered window on one line: label, percentage burned, and reset —
     /// the same three the tooltip spreads over three lines.
-    static func windowLine(for window: LimitWindow, now: Date) -> String {
-        var line = "\(window.label): \(window.summary)"
+    static func windowLine(for window: LimitWindow, now: Date,
+                           asRemaining: Bool = false) -> String {
+        var line = "\(window.label): \(window.summary(asRemaining: asRemaining))"
         if let resetsAt = window.resetsAt {
             line += " · \(ResetCopy.text(for: resetsAt, now: now))"
         }

@@ -1,5 +1,4 @@
 import XCTest
-import Sparkle
 @testable import Codenotch
 
 /// Fixtures are the real thing: the keychain payload's shape and the actual
@@ -1147,42 +1146,6 @@ final class AppPresenceTests: XCTestCase {
     }
 }
 
-/// What the settings sheet says after a check. Sparkle's own answer to a failed
-/// one is a modal reading "an error occurred in retrieving update information",
-/// which names no cause and offers nothing to do — so the outcome is kept and
-/// worded here instead.
-@MainActor
-final class UpdateOutcomeTests: XCTestCase {
-    /// The case people actually hit, and the one that most needs reassuring:
-    /// nothing is wrong with their copy of the app.
-    func testAnUnreachableFeedSaysSoWithoutBlamingTheApp() throws {
-        let message = try XCTUnwrap(Updater.Outcome.unreachable.message)
-        XCTAssertTrue(message.contains("Couldn't reach"))
-        XCTAssertTrue(message.contains("nothing is wrong with this copy"))
-        XCTAssertFalse(message.lowercased().contains("error occurred"))
-    }
-
-    func testEveryOutcomeExceptIdleSaysSomething() {
-        XCTAssertNil(Updater.Outcome.idle.message)
-        for outcome: Updater.Outcome in [.checking, .upToDate(Date()), .found("1.1.0"),
-                                         .unreachable, .failed("disk full")] {
-            XCTAssertNotNil(outcome.message, "\(outcome) says nothing")
-        }
-    }
-
-    func testAFoundUpdateNamesTheVersion() throws {
-        let message = try XCTUnwrap(Updater.Outcome.found("1.2.0").message)
-        XCTAssertTrue(message.contains("1.2.0"))
-    }
-
-    /// The distinction the wording depends on: a feed that cannot be fetched is
-    /// routine, anything else is reported as itself.
-    func testOnlyAFeedFailureCountsAsUnreachable() {
-        XCTAssertTrue(Updater.isUnreachable(Int(SUError.appcastError.rawValue)))
-        XCTAssertFalse(Updater.isUnreachable(Int(SUError.installationError.rawValue)))
-    }
-}
-
 /// The menu bar mark. Loaded from the asset catalogue rather than drawn from
 /// the app icon, and a template so macOS can tint it for whatever the bar is.
 @MainActor
@@ -1273,10 +1236,10 @@ final class StatusMenuTests: XCTestCase {
         let menu = NSMenu()
         controller.rebuild(menu: menu, now: now)
         let titles = menu.items.map(\.title)
-        XCTAssertTrue(titles[0].contains("Codex — 29%"), titles[0])
+        XCTAssertTrue(titles[0].contains("Codex — 71%"), titles[0])
         XCTAssertTrue(titles[0].contains("20 hr 21 min ago"), titles[0])
         XCTAssertTrue(titles[1].contains("Weekly limit"), titles[1])
-        XCTAssertTrue(titles[1].contains("29% Used · 71% left"), titles[1])
+        XCTAssertTrue(titles[1].contains("71% left"), titles[1])
         XCTAssertTrue(titles.contains("Refresh all"))
         XCTAssertTrue(titles.contains("Settings…"))
         XCTAssertTrue(titles.contains("Quit Codenotch"))

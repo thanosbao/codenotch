@@ -58,6 +58,19 @@ enum Percent {
         return small(value)
     }
 
+    /// The percentage still available to the user. Invalid data stays absent.
+    static func remainingText(for usedFraction: Double) -> String? {
+        guard usedFraction.isFinite else { return nil }
+        // Use the same rounded-used/derived-left path as tooltip copy. This
+        // keeps 32.5% used from becoming 68% in one place and 67% in another.
+        return halves(for: usedFraction).left
+    }
+
+    static func remainingFraction(for usedFraction: Double) -> Double? {
+        guard usedFraction.isFinite else { return nil }
+        return min(max(1 - usedFraction, 0), 1)
+    }
+
     private static func small(_ value: Double) -> String {
         if value <= 0 { return "0" }
         let tenths = (value * 10).rounded() / 10
@@ -103,6 +116,12 @@ struct LimitWindow: Identifiable, Codable, Equatable {
         self.duration = duration
     }
 
+    /// Derived only when the provider supplied a finite denominator-backed
+    /// fraction; missing or invalid readings remain missing.
+    var remainingFraction: Double? {
+        usedFraction.flatMap(Percent.remainingFraction(for:))
+    }
+
     /// A count short enough to sit inside a 44 pt ring.
     ///
     /// Requests and credits are three or four digits and print verbatim; token
@@ -118,13 +137,7 @@ struct LimitWindow: Identifiable, Codable, Equatable {
     var summary: String { summary(locale: L10n.locale) }
 
     func summary(locale: Locale = L10n.locale) -> String {
-        if let usedFraction {
-            // Both ends of the same figure. Vendors do not agree on which to
-            // show — Codex writes "87% remaining", Claude writes "% used" — so
-            // a notch that picks one side leaves the user converting in their
-            // head, and "12% Used" beside Codex's "87% remaining" reads as two
-            // different numbers rather than one seen from either end. That is
-            // what made a correct reading look wrong.
+        if let usedFraction, usedFraction.isFinite {
             let halves = Percent.halves(for: usedFraction)
             return L10n.t("\(halves.used)% Used · \(halves.left)% left", locale: locale)
         }
@@ -139,6 +152,14 @@ struct LimitWindow: Identifiable, Codable, Equatable {
                 : L10n.t("\(Self.compact(used)) used", locale: locale)
         }
         return L10n.t("No reading", locale: locale)
+    }
+
+    func summary(asRemaining: Bool, locale: Locale = L10n.locale) -> String {
+        guard asRemaining, let usedFraction,
+              let remaining = Percent.remainingText(for: usedFraction) else {
+            return summary(locale: locale)
+        }
+        return L10n.t("\(remaining)% left", locale: locale)
     }
 }
 
@@ -234,6 +255,10 @@ struct ProviderSnapshot: Identifiable, Equatable {
 
     var usedFraction: Double? { headline?.usedFraction }
 
+    var remainingFraction: Double? {
+        headline?.usedFraction.flatMap(Percent.remainingFraction(for:))
+    }
+
     /// The window the second ring draws, when one is switched on.
     ///
     /// Declared by the provider, exactly like `headlineID`, and for the same
@@ -265,7 +290,13 @@ struct ProviderSnapshot: Identifiable, Equatable {
             return showsLocalPerformance ? (localPerformance?.headlineText ?? "— tok/s")
                 : (localModel?.memoryText ?? "—")
         }
-        if let usedFraction { return Percent.text(for: usedFraction) + "%" }
+        if providerID.hasPrefix("codex"),
+           let usedFraction, let remaining = Percent.remainingText(for: usedFraction) {
+            return remaining + "%"
+        }
+        if let usedFraction, usedFraction.isFinite {
+            return Percent.text(for: usedFraction) + "%"
+        }
         if let remaining = headline?.remaining { return LimitWindow.compact(remaining) }
         if let used = headline?.used { return LimitWindow.compact(used) }
         return "—"

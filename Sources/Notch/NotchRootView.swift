@@ -232,6 +232,8 @@ struct NotchRootView: View {
             ProviderCell(
                 snapshot: snapshot,
                 activity: model.activity(for: snapshot),
+                showsActivityArc: !snapshot.providerID.hasPrefix("codex"),
+                showsRemaining: snapshot.providerID.hasPrefix("codex"),
                 isRefreshing: model.isRefreshing(snapshot),
                 weeklyRing: model.weeklyRing
             )

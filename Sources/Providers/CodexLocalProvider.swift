@@ -82,7 +82,7 @@ actor CodexLocalProvider: UsageProvider {
         return ProviderSnapshot(
             id: id, displayName: displayName, glyph: glyph,
             fidelity: .official, status: .ok, windows: windows,
-            headlineID: windows.first?.id,
+            headlineID: "primary",
             weeklyID: "secondary",
             tokenUsage: profileUsage
         )
