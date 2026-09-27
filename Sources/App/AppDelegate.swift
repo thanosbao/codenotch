@@ -132,6 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            Preferences.storedGeminiAPIMonthlyTokenBudget()
                        })]
                     + webProviders,
+                refreshInterval: codexProfiles.contains {
+                    !preferences.disconnectedProviders.contains($0.id)
+                } ? 25 : 60,
                 disconnected: preferences.disconnectedProviders,
                 // Passed at construction, not left to the sink below, for the
                 // same reason `disconnected` is: the sink delivers a run loop
@@ -306,6 +309,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             fleet.onReposition = { [weak preferences] offset in
                 preferences?.setOffset(offset, for: preferences?.notchEdge ?? .right)
+            }
+            fleet.onToggleKeepOpen = { [weak preferences] in
+                guard let preferences else { return }
+                preferences.notchVisibility = preferences.notchVisibility == .alwaysShow
+                    ? .onHover
+                    : .alwaysShow
             }
 
             preferences.$resetTimeFormat

@@ -95,18 +95,25 @@ final class CodexProfileTests: XCTestCase {
         XCTAssertNil(CodexLocalProvider(profile: work).account(), "must never fall back to the default account")
     }
 
-    func testRequestsAndSnapshotsAreIsolatedAndTokensAreReread() async throws {
+    func testOfficialServerSnapshotsStayProfileIsolated() async throws {
         let root = try home([".codex": [], ".codex-work": []])
         let personal = CodexProfile.default(home: root)
         let work = CodexProfile(slug: "work", configDirectory: root.appendingPathComponent(".codex-work"))
         try writeAuth(personal, account: "personal", token: "personal-token")
         try writeAuth(work, account: "work", token: "work-token")
-        let session = CodexProfileEndpoint.session()
-        defer { session.invalidateAndCancel() }
+        let executable = try fakeCodexCLI(in: root)
         let archive = archive()
-        let p = CodexLocalProvider(profile: personal, session: session, archive: archive)
-        let w = CodexLocalProvider(profile: work, session: session, archive: archive)
-        let personalReading = try await p.fetchSnapshot()
+        let p = CodexLocalProvider(profile: personal, appServerExecutableURL: executable, archive: archive)
+        let w = CodexLocalProvider(profile: work, appServerExecutableURL: executable, archive: archive)
+        let personalReading: ProviderSnapshot
+        do {
+            personalReading = try await p.fetchSnapshot()
+        } catch {
+            let log = (try? String(contentsOf: personal.configDirectory.appendingPathComponent("rpc.log"),
+                                   encoding: .utf8)) ?? "<no rpc log>"
+            XCTFail("Personal App Server request failed: \(error), requests: \(log)")
+            return
+        }
         let workReading = try await w.fetchSnapshot()
         XCTAssertEqual(personalReading.id, "codex")
         XCTAssertEqual(personalReading.usedFraction, 0.10)
@@ -115,7 +122,7 @@ final class CodexProfileTests: XCTestCase {
 
         try writeAuth(work, account: "work", token: "rotated-token")
         let rotated = try await w.fetchSnapshot()
-        XCTAssertEqual(rotated.usedFraction, 0.80)
+        XCTAssertEqual(rotated.usedFraction, 0.75)
         let unchanged = try CodexCredentials.load(from: personal.authURL)
         XCTAssertEqual(unchanged.accessToken, "personal-token")
     }
@@ -124,39 +131,47 @@ final class CodexProfileTests: XCTestCase {
         let root = try home([".codex": [], ".codex-work": []])
         try writeAuth(.default(home: root), account: "personal", token: "personal-token")
         let work = CodexProfile(slug: "work", configDirectory: root.appendingPathComponent(".codex-work"))
-        let session = CodexProfileEndpoint.session()
-        defer { session.invalidateAndCancel() }
-        let provider = CodexLocalProvider(profile: work, session: session, archive: archive())
+        let provider = CodexLocalProvider(profile: work, archive: archive())
         do {
             _ = try await provider.fetchSnapshot()
             XCTFail("A missing work login must not return the personal reading")
         } catch UsageProviderError.needsAuth {} catch { XCTFail("Unexpected error: \(error)") }
     }
 
-    func testRateLimitSurvivesRecreationWithoutBlockingTheDefault() async throws {
-        let root = try home([".codex": [], ".codex-work": []])
-        let personal = CodexProfile.default(home: root)
-        let work = CodexProfile(slug: "work", configDirectory: root.appendingPathComponent(".codex-work"))
-        try writeAuth(personal, account: "personal", token: "personal-token")
-        try writeAuth(work, account: "work", token: "limited-token")
-        let archive = archive()
-        let session = CodexProfileEndpoint.session()
-        defer { session.invalidateAndCancel() }
-        do {
-            _ = try await CodexLocalProvider(profile: work, session: session, archive: archive).fetchSnapshot()
-            XCTFail("Expected the work account's rate limit")
-        } catch UsageProviderError.rateLimited {} catch { XCTFail("Unexpected error: \(error)") }
-        XCTAssertNotNil(archive.loadBackoffUntil(providerID: work.id))
-        XCTAssertNil(archive.loadBackoffUntil(providerID: personal.id))
-        // A fresh token would succeed on the stub; the persisted deadline must prevent that request.
-        try writeAuth(work, account: "work", token: "work-token")
-        do {
-            _ = try await CodexLocalProvider(profile: work, session: session, archive: archive).fetchSnapshot()
-            XCTFail("Recreating the provider bypassed the persisted deadline")
-        } catch UsageProviderError.rateLimited {} catch { XCTFail("Unexpected error: \(error)") }
-        let reading = try await CodexLocalProvider(profile: personal, session: session, archive: archive).fetchSnapshot()
-        XCTAssertEqual(reading.usedFraction, 0.10)
-        XCTAssertNotNil(archive.loadBackoffUntil(providerID: work.id), "success for personal must not clear work backoff")
+    func testRPCFailureCooldownAvoidsRespawningAndKeepsFailureKind() async throws {
+        let root = try home([".codex": []])
+        let profile = CodexProfile.default(home: root)
+        try writeAuth(profile, account: "personal", token: "personal-token")
+        let executable = root.appendingPathComponent("failing-codex")
+        let script = #"""
+        #!/bin/sh
+        count=0
+        [ -f "$CODEX_HOME/starts" ] && count=$(cat "$CODEX_HOME/starts")
+        count=$((count + 1))
+        printf '%s' "$count" > "$CODEX_HOME/starts"
+        while IFS= read -r line; do
+          case "$line" in
+            *clientInfo*) printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{}}' ;;
+            *account*rateLimits*read*)
+              printf '%s\n' '{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"unavailable"}}'
+              ;;
+          esac
+        done
+        """#
+        try Data(script.utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let provider = CodexLocalProvider(profile: profile, appServerExecutableURL: executable,
+                                          archive: archive())
+
+        for _ in 0..<2 {
+            do {
+                _ = try await provider.fetchSnapshot()
+                XCTFail("Expected the App Server RPC error")
+            } catch UsageProviderError.badResponse(status: 0) {}
+        }
+        await provider.signOut()
+        XCTAssertEqual(try String(contentsOf: profile.configDirectory.appendingPathComponent("starts"),
+                                  encoding: .utf8), "1")
     }
 
     @MainActor
@@ -168,10 +183,9 @@ final class CodexProfileTests: XCTestCase {
         try writeAuth(work, account: "work", token: "work-token")
         let originalAuth = try Data(contentsOf: work.authURL)
         let archive = archive()
-        let session = CodexProfileEndpoint.session()
-        defer { session.invalidateAndCancel() }
+        let executable = try fakeCodexCLI(in: root)
         let providers: [UsageProvider] = [personal, work].map {
-            CodexLocalProvider(profile: $0, session: session, archive: archive)
+            CodexLocalProvider(profile: $0, appServerExecutableURL: executable, archive: archive)
         }
         let store = UsageStore(providers: providers, archive: archive, order: [work.id, personal.id])
         await store.refresh()
@@ -214,6 +228,32 @@ final class CodexProfileTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(db, "INSERT INTO local_thread_catalog VALUES (\(Date().timeIntervalSince1970), '\(title)', 'test')", nil, nil, nil), SQLITE_OK)
     }
 
+    private func fakeCodexCLI(in root: URL) throws -> URL {
+        let executable = root.appendingPathComponent("fake-codex")
+        let script = #"""
+        #!/bin/sh
+        account=personal
+        percent=10
+        case "$CODEX_HOME" in *".codex-work") account=work; percent=75 ;; esac
+        while IFS= read -r line; do
+          printf '%s\n' "$line" >> "$CODEX_HOME/rpc.log"
+          id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+          case "$line" in
+            *clientInfo*) printf '{"jsonrpc":"2.0","id":%s,"result":{}}\n' "$id" ;;
+            *account*rateLimits*read*)
+              printf '{"jsonrpc":"2.0","id":%s,"result":{"accountId":"%s","rateLimits":{"primary":{"usedPercent":%s,"windowDurationMins":300}}}}\n' "$id" "$account" "$percent"
+              ;;
+            *account*usage*read*)
+              printf '{"jsonrpc":"2.0","id":%s,"result":{"summary":null,"dailyUsageBuckets":null}}\n' "$id"
+              ;;
+          esac
+        done
+        """#
+        try Data(script.utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        return executable
+    }
+
     @MainActor
     func testCLIActivityWithTheSameRolloutFilenameDoesNotCollide() throws {
         let root = try home([".codex": [], ".codex-work": []])
@@ -235,38 +275,5 @@ final class CodexProfileTests: XCTestCase {
         XCTAssertEqual(p.sessions.map(\.id), ["codex.rollout.jsonl"])
         XCTAssertEqual(w.sessions.map(\.id), ["codex-work.rollout.jsonl"])
         XCTAssertEqual(w.sessions.map(\.name), ["Codex (work)"])
-    }
-}
-
-/// Stateless: tests can run concurrently without a shared request queue.
-private final class CodexProfileEndpoint: URLProtocol {
-    static func session() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [CodexProfileEndpoint.self]
-        return URLSession(configuration: configuration)
-    }
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func stopLoading() {}
-
-    override func startLoading() {
-        let account = request.value(forHTTPHeaderField: "ChatGPT-Account-Id")
-        let token = request.value(forHTTPHeaderField: "Authorization")
-        let percent: Int
-        let status: Int
-        switch (account, token) {
-        case ("personal", "Bearer personal-token"): percent = 10; status = 200
-        case ("work", "Bearer work-token"): percent = 75; status = 200
-        case ("work", "Bearer rotated-token"): percent = 80; status = 200
-        case ("work", "Bearer limited-token"): percent = 0; status = 429
-        default: percent = 0; status = 401
-        }
-        let response = HTTPURLResponse(url: request.url!, statusCode: status,
-                                       httpVersion: nil, headerFields: ["Retry-After": "300"])!
-        let body = Data("{\"rate_limit\":{\"primary_window\":{\"used_percent\":\(percent),\"limit_window_seconds\":18000}}}".utf8)
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: body)
-        client?.urlProtocolDidFinishLoading(self)
     }
 }

@@ -18,6 +18,8 @@ final class NotchWindowController {
 
     /// Hooked up by the app delegate; drives the menu's "Refresh now".
     var onRefresh: (() -> Void)?
+    /// Persists the menu's "Keep open" choice in Preferences.
+    var onToggleKeepOpen: (() -> Void)?
     /// One "Sign in to …" item per provider that needs a browser session.
     var signInItems: [(title: String, action: () -> Void)] = []
     /// Refetch a single provider, asked for by clicking its ring.
@@ -866,10 +868,7 @@ final class NotchWindowController {
     }
 
     /// Clicking the open notch pins it, so it stays put while you read it.
-    ///
-    /// A no-op while Settings says Always show: there the notch is already
-    /// held open by a standing choice, and letting a click release it meant
-    /// the setting said one thing and the notch did another.
+    /// This is deliberately separate from the menu's standing choice.
     func togglePinned() {
         guard !model.isAlwaysOn else { return }
         model.isPinned.toggle()
@@ -879,6 +878,12 @@ final class NotchWindowController {
             withAnimation(NotchMotion.unfold) { model.isExpanded = true }
         }
         updateInteractiveRects()
+    }
+
+    /// The menu action changes the persisted visibility preference. Ordinary
+    /// notch clicks must never call this path.
+    func toggleKeepOpen() {
+        onToggleKeepOpen?()
     }
 
     func cellIndex(along: CGFloat) -> Int? {
@@ -909,19 +914,12 @@ final class NotchWindowController {
         menu.autoenablesItems = false
         let keepOpen = NSMenuItem(
             title: L10n.t("Keep open"),
-            action: #selector(MenuActions.togglePinned(_:)),
+            action: #selector(MenuActions.toggleKeepOpen(_:)),
             keyEquivalent: ""
         )
         keepOpen.target = menuActions
-        // Checked whichever way it is being held open, but only changeable
-        // when it is the click that is holding it — the setting is Settings'
-        // to change, and a menu item that silently loses is worse than one
-        // that says it is not yours to press.
-        keepOpen.state = model.staysOpen ? .on : .off
-        keepOpen.isEnabled = !model.isAlwaysOn
-        keepOpen.toolTip = model.isAlwaysOn
-            ? L10n.t("Codenotch is set to Always show. Change it in Settings.")
-            : nil
+        keepOpen.state = model.isAlwaysOn ? .on : .off
+        keepOpen.isEnabled = true
         menu.addItem(keepOpen)
         menu.addItem(.separator())
 
@@ -957,7 +955,8 @@ final class NotchWindowController {
     private lazy var menuActions = MenuActions(
         refresh: { [weak self] in self?.onRefresh?() },
         signIn: { [weak self] index in self?.signInItems[safe: index]?.action() },
-        togglePinned: { [weak self] in self?.togglePinned() }
+        togglePinned: { [weak self] in self?.togglePinned() },
+        toggleKeepOpen: { [weak self] in self?.toggleKeepOpen() }
     )
 }
 
@@ -968,19 +967,23 @@ final class MenuActions: NSObject {
     private let refresh: () -> Void
     private let signIn: (Int) -> Void
     private let pin: () -> Void
+    private let keepOpen: () -> Void
 
     init(
         refresh: @escaping () -> Void,
         signIn: @escaping (Int) -> Void,
-        togglePinned: @escaping () -> Void
+        togglePinned: @escaping () -> Void,
+        toggleKeepOpen: @escaping () -> Void
     ) {
         self.refresh = refresh
         self.signIn = signIn
         self.pin = togglePinned
+        self.keepOpen = toggleKeepOpen
     }
 
     @objc func refreshNow(_ sender: Any?) { refresh() }
     @objc func togglePinned(_ sender: Any?) { pin() }
+    @objc func toggleKeepOpen(_ sender: Any?) { keepOpen() }
 
     @objc func signIn(_ sender: Any?) {
         guard let item = sender as? NSMenuItem else { return }

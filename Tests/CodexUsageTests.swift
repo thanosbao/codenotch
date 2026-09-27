@@ -24,6 +24,46 @@ final class CodexUsageTests: XCTestCase {
         XCTAssertEqual(result.first?.resetsAt, Date(timeIntervalSince1970: 1_800_001_000))
     }
 
+    func testOfficialAppServerWindowsUseCodexBucketAndPreserveMissingWindows() throws {
+        let data = Data("""
+        {"primary":{"usedPercent":49,"windowDurationMins":300,"resetsAt":1800001000},
+         "secondary":{"usedPercent":70,"windowDurationMins":10080,"resetsAt":1800600000}}
+        """.utf8)
+        let result = try CodexUsage.appServerWindows(from: data)
+        XCTAssertEqual(result.map(\.id), ["primary", "secondary"])
+        XCTAssertEqual(result.map(\.usedFraction), [0.49, 0.70])
+        XCTAssertEqual(result.map(\.duration), [18_000, 604_800])
+        XCTAssertEqual(result.map(\.label), ["5h limit", "Weekly limit"])
+
+        XCTAssertThrowsError(try CodexUsage.appServerWindows(from: Data("{}".utf8)))
+    }
+
+    func testOfficialHistoryKeepsNullSummaryAndBucketsUnknown() throws {
+        let usage = try CodexUsage.appServerTokenUsage(from: Data("""
+        {"summary":{"lifetimeTokens":1234567,"peakDailyTokens":null,
+         "longestRunningTurnSec":540,"currentStreakDays":null,"longestStreakDays":14},
+         "dailyUsageBuckets":null}
+        """.utf8))
+        XCTAssertEqual(usage.summary?.lifetimeTokens, 1_234_567)
+        XCTAssertNil(usage.summary?.peakDailyTokens)
+        XCTAssertEqual(usage.summary?.longestRunningTurnSeconds, 540)
+        XCTAssertNil(usage.summary?.currentStreakDays)
+        XCTAssertNil(usage.dailyUsageBuckets)
+        XCTAssertNil(usage.usageToday())
+        XCTAssertNil(usage.usageInLast30Days())
+    }
+
+    func testOfficialHistoryDecodesDailyBuckets() throws {
+        let usage = try CodexUsage.appServerTokenUsage(from: Data("""
+        {"summary":{"lifetimeTokens":1234567,"peakDailyTokens":45678,
+         "longestRunningTurnSec":540,"currentStreakDays":8,"longestStreakDays":14},
+         "dailyUsageBuckets":[{"startDate":"2026-06-18","tokens":12345}]}
+        """.utf8))
+        XCTAssertEqual(usage.dailyUsageBuckets?.map(\.startDate), ["2026-06-18"])
+        XCTAssertEqual(usage.dailyUsageBuckets?.map(\.tokens), [12_345])
+        XCTAssertEqual(usage.peakDailyTokens, 45_678)
+    }
+
     /// The reported case: a free-plan account's primary window was 30 days,
     /// not 5 hours or 7 — recorded from a live request. The old parser only
     /// recognised two fixed durations and silently dropped anything else,

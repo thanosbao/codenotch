@@ -606,15 +606,71 @@ final class EdgeArrivalTests: XCTestCase {
 /// saying "Always show". Reported as: it sometimes reverts to show-on-hover.
 @MainActor
 final class AlwaysShowTests: XCTestCase {
+    func testKeepOpenMenuActionUsesTheStandingChoiceCallback() {
+        var callbackCalls = 0
+        let actions = MenuActions(
+            refresh: {},
+            signIn: { _ in },
+            togglePinned: {},
+            toggleKeepOpen: { callbackCalls += 1 }
+        )
+
+        actions.toggleKeepOpen(nil)
+
+        XCTAssertEqual(callbackCalls, 1,
+                       "the Keep open menu item must use the standing-choice callback")
+    }
+
+    func testKeepOpenPromotesToTheStandingChoice() {
+        let controller = NotchWindowController()
+        controller.apply(.onHover)
+        controller.onToggleKeepOpen = {
+            controller.apply(controller.model.isAlwaysOn ? .onHover : .alwaysShow)
+        }
+
+        controller.toggleKeepOpen()
+
+        XCTAssertTrue(controller.model.isAlwaysOn)
+        XCTAssertTrue(controller.model.staysOpen)
+        XCTAssertTrue(controller.model.isExpanded)
+
+        controller.toggleKeepOpen()
+        XCTAssertFalse(controller.model.isAlwaysOn)
+        XCTAssertFalse(controller.model.staysOpen)
+        XCTAssertFalse(controller.model.isExpanded)
+    }
+
+    func testStandingKeepOpenSurvivesFullScreenAndReturns() {
+        let controller = NotchWindowController()
+        controller.apply(.onHover)
+        controller.onToggleKeepOpen = { controller.apply(.alwaysShow) }
+        controller.toggleKeepOpen()
+        controller.isFullScreenActive = { true }
+
+        controller.handleActiveSpaceOrAppChange()
+        XCTAssertFalse(controller.model.isExpanded)
+
+        controller.isFullScreenActive = { false }
+        controller.handleActiveSpaceOrAppChange()
+
+        XCTAssertTrue(controller.model.isAlwaysOn)
+        XCTAssertTrue(controller.model.isExpanded,
+                      "a full-screen fold must not clear the standing Keep open choice")
+    }
+
     func testClickingTheNotchDoesNotUndoAlwaysShow() {
         let controller = NotchWindowController()
         controller.apply(.alwaysShow)
+        var menuActionCalls = 0
+        controller.onToggleKeepOpen = { menuActionCalls += 1 }
         XCTAssertTrue(controller.model.staysOpen)
 
         controller.togglePinned()   // a click on the bar
         XCTAssertTrue(controller.model.staysOpen,
                       "a click downgraded Always show to hover")
         XCTAssertTrue(controller.model.isExpanded)
+        XCTAssertEqual(menuActionCalls, 0,
+                       "ordinary notch clicks must not invoke the menu preference action")
     }
 
     /// However many times. The report said "sometimes", which is what a toggle

@@ -55,6 +55,7 @@ final class NotchFleet {
 
     /// Hooked up by the app delegate; driven by the notch's own chrome.
     var onRefresh: (() -> Void)?
+    var onToggleKeepOpen: (() -> Void)?
     var onRefreshProvider: ((String) async -> Void)?
     var onOpenSettings: (() -> Void)?
     var signInItems: [(title: String, action: () -> Void)] = []
@@ -326,6 +327,7 @@ final class NotchFleet {
         controller.model.weeklyRing = weeklyRing
         controller.model.surfaceStyle = surfaceStyle
         controller.onRefresh = onRefresh
+        controller.onToggleKeepOpen = onToggleKeepOpen
         controller.onRefreshProvider = onRefreshProvider
         controller.onOpenSettings = onOpenSettings
         controller.model.onOpenSettings = onOpenSettings

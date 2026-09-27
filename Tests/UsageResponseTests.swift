@@ -343,6 +343,38 @@ final class RefreshScheduleTests: XCTestCase {
             idleInterval: idle
         ))
     }
+
+    /// A Codex limit can roll over while the store is in its quiet interval;
+    /// the reset timestamp is the clock edge that makes the next tick fetch.
+    @MainActor
+    func testAWindowResetBoundaryTriggersBeforeTheIdleInterval() {
+        let lastAttempt = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = lastAttempt.addingTimeInterval(300)
+        let snapshot = ProviderSnapshot(
+            id: "codex", displayName: "Codex", glyph: .openai,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(
+                id: "primary", label: "5h limit", usedFraction: 0.9,
+                resetsAt: reset
+            )]
+        )
+
+        XCTAssertFalse(UsageStore.windowResetIsDue(
+            snapshots: [snapshot], since: lastAttempt, at: reset.addingTimeInterval(-0.001)
+        ))
+        XCTAssertTrue(UsageStore.windowResetIsDue(
+            snapshots: [snapshot], since: lastAttempt, at: reset
+        ))
+        XCTAssertFalse(UsageStore.windowResetIsDue(
+            snapshots: [snapshot], since: reset, at: reset.addingTimeInterval(1)
+        ))
+        XCTAssertTrue(UsageStore.shouldRefresh(
+            isBusy: false,
+            sinceLastAttempt: 60,
+            idleInterval: idle,
+            resetDue: true
+        ))
+    }
 }
 
 /// Some failures say something about the account rather than about the network.

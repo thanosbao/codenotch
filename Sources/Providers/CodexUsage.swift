@@ -38,16 +38,17 @@ struct CodexTokenUsage: Codable, Equatable, Sendable {
     }
 
     let summary: Summary?
-    let dailyUsageBuckets: [DailyBucket]
+    let dailyUsageBuckets: [DailyBucket]?
 
     init(summary: Summary? = nil,
-         dailyUsageBuckets: [DailyBucket] = []) {
+         dailyUsageBuckets: [DailyBucket]? = []) {
         self.summary = summary
         self.dailyUsageBuckets = dailyUsageBuckets
     }
 
     /// The consecutive calendar days represented by the card's chart.
     func last30Days(now: Date = Date(), calendar: Calendar = .current) -> [DailyBucket] {
+        guard let dailyUsageBuckets else { return [] }
         let today = calendar.startOfDay(for: now)
         var values: [String: DailyBucket] = [:]
         for bucket in dailyUsageBuckets {
@@ -62,19 +63,21 @@ struct CodexTokenUsage: Codable, Equatable, Sendable {
         }
     }
 
-    func usageInLast30Days(now: Date = Date(), calendar: Calendar = .current) -> Int {
-        last30Days(now: now, calendar: calendar).reduce(0) { $0 + $1.tokens }
+    func usageInLast30Days(now: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard dailyUsageBuckets != nil else { return nil }
+        return last30Days(now: now, calendar: calendar).reduce(0) { $0 + $1.tokens }
     }
 
     /// A missing current-day bucket means the server has not published today's
     /// usage yet. A present zero is a real zero, not a pending value.
     func usageToday(now: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard let dailyUsageBuckets else { return nil }
         let key = Self.dayKey(for: calendar.startOfDay(for: now), calendar: calendar)
         return dailyUsageBuckets.first(where: { $0.startDate == key })?.tokens
     }
 
     var peakDailyTokens: Int? {
-        summary?.peakDailyTokens ?? dailyUsageBuckets.map(\.tokens).max()
+        summary?.peakDailyTokens ?? dailyUsageBuckets?.map(\.tokens).max()
     }
 
     private static func dayKey(for date: Date, calendar: Calendar) -> String {
@@ -88,6 +91,35 @@ struct CodexTokenUsage: Codable, Equatable, Sendable {
 /// `additional_rate_limits` and `code_review_rate_limit` meter something else
 /// and are deliberately left out.
 enum CodexUsage {
+    private struct AppServerWindowResponse: Decodable {
+        let primary: AppServerWindow?
+        let secondary: AppServerWindow?
+    }
+
+    private struct AppServerWindow: Decodable {
+        let usedPercent: Double?
+        let windowDurationMins: Double?
+        let resetsAt: Double?
+    }
+
+    private struct AppServerUsageResponse: Decodable {
+        let summary: AppServerSummary?
+        let dailyUsageBuckets: [AppServerDailyBucket]?
+    }
+
+    private struct AppServerSummary: Decodable {
+        let lifetimeTokens: Int?
+        let peakDailyTokens: Int?
+        let longestRunningTurnSec: Double?
+        let currentStreakDays: Int?
+        let longestStreakDays: Int?
+    }
+
+    private struct AppServerDailyBucket: Decodable {
+        let startDate: String
+        let tokens: Int
+    }
+
     private struct Response: Decodable {
         let rate_limit: RateLimit?
     }
@@ -120,6 +152,57 @@ enum CodexUsage {
         let used_percent: Double?
         let reset_at: Double?
         let reset_after_seconds: Double?
+    }
+
+    static func appServerWindows(from data: Data, now: Date = Date()) throws -> [LimitWindow] {
+        let response: AppServerWindowResponse
+        do {
+            response = try JSONDecoder().decode(AppServerWindowResponse.self, from: data)
+        } catch {
+            throw UsageProviderError.badResponse(status: 0)
+        }
+        var windows: [LimitWindow] = []
+        for (id, window) in [("primary", response.primary), ("secondary", response.secondary)] {
+            guard let window, let percent = window.usedPercent,
+                  percent.isFinite, (0...100).contains(percent) else { continue }
+            let duration = window.windowDurationMins.flatMap { value in
+                value.isFinite && value > 0 ? value * 60 : nil
+            }
+            let reset = window.resetsAt.flatMap { value in
+                value.isFinite ? Date(timeIntervalSince1970: value) : nil
+            }
+            windows.append(LimitWindow(
+                id: id,
+                label: label(windowSeconds: duration ?? 0, fallback: id),
+                usedFraction: percent / 100,
+                resetsAt: reset,
+                duration: duration
+            ))
+        }
+        guard !windows.isEmpty else {
+            throw UsageProviderError.nothingMetered(L10n.t("Codex reported no usage windows"))
+        }
+        return windows
+    }
+
+    static func appServerTokenUsage(from data: Data) throws -> CodexTokenUsage {
+        do {
+            let response = try JSONDecoder().decode(AppServerUsageResponse.self, from: data)
+            return CodexTokenUsage(
+                summary: response.summary.map {
+                    .init(lifetimeTokens: $0.lifetimeTokens,
+                          peakDailyTokens: $0.peakDailyTokens,
+                          longestRunningTurnSeconds: $0.longestRunningTurnSec,
+                          currentStreakDays: $0.currentStreakDays,
+                          longestStreakDays: $0.longestStreakDays)
+                },
+                dailyUsageBuckets: response.dailyUsageBuckets.map {
+                    $0.map { .init(startDate: $0.startDate, tokens: $0.tokens) }
+                }
+            )
+        } catch {
+            throw UsageProviderError.badResponse(status: 0)
+        }
     }
 
     static func windows(from data: Data, now: Date = Date()) throws -> [LimitWindow] {
@@ -169,7 +252,7 @@ enum CodexUsage {
                 },
                 dailyUsageBuckets: stats?.daily_usage_buckets?.map {
                     .init(startDate: $0.start_date, tokens: $0.tokens)
-                } ?? []
+                }
             )
         } catch let error as UsageProviderError {
             throw error

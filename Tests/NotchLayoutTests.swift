@@ -942,6 +942,17 @@ final class NotchFleetScopeTests: XCTestCase {
         XCTAssertEqual(fleet.controllersForTesting.count, min(1, NSScreen.screens.count))
     }
 
+    func testARecreatedControllerInheritsTheStandingVisibilityChoice() {
+        guard !NSScreen.screens.isEmpty else { return }
+        let fleet = NotchFleet(scope: .mainDisplay, edge: .left)
+        fleet.apply(.alwaysShow)
+        fleet.show()
+        defer { fleet.stop() }
+
+        XCTAssertTrue(fleet.controllersForTesting.allSatisfy { $0.model.isAlwaysOn })
+        XCTAssertTrue(fleet.controllersForTesting.allSatisfy { $0.model.isExpanded })
+    }
+
     func testAllDisplaysKeepsOneNotchPerScreen() {
         let fleet = NotchFleet(scope: .allDisplays, edge: .right)
         fleet.show()

@@ -1,30 +1,36 @@
 import Foundation
 import SQLite3
 
-/// Reads live account limits using the session owned and refreshed by Codex.
+/// Reads live account limits through the Codex-owned App Server.
 actor CodexLocalProvider: UsageProvider {
     nonisolated let id: String
     nonisolated let displayName: String
     nonisolated let glyph = ProviderGlyph.openai
     nonisolated let profile: CodexProfile
 
-    private let session: URLSession
     nonisolated private let authURL: URL
     private let archive: UsageArchive
+    private let appServerExecutableURL: URL?
     private var retryNoEarlierThan: Date?
+    private var failureCooldownUntil: Date?
+    private var failureCooldownError: UsageProviderError?
+    private var appServer: CodexAppServerClient?
+    private var tokenUsage: CodexTokenUsage?
+    private var historyRefresh: Task<Void, Never>?
+    private var historyRefreshStartedAt: Date?
 
     init(profile: CodexProfile = .default(),
-         session: URLSession = .shared,
          authURL: URL? = nil,
+         appServerExecutableURL: URL? = nil,
          archive: UsageArchive = UsageArchive()) {
         self.profile = profile
         self.id = profile.id
         self.displayName = profile.displayName
-        self.session = session
         self.authURL = authURL ?? profile.authURL
+        self.appServerExecutableURL = appServerExecutableURL
         self.archive = archive
-        // Recreating the provider or relaunching must not bypass the server's retry deadline.
         self.retryNoEarlierThan = archive.loadBackoffUntil(providerID: profile.id)
+        self.tokenUsage = archive.load()[profile.id]?.snapshot.tokenUsage
     }
 
     nonisolated var signInRoute: SignInRoute {
@@ -37,93 +43,73 @@ actor CodexLocalProvider: UsageProvider {
     }
 
     func fetchSnapshot() async throws -> ProviderSnapshot {
-        let now = Date()
-        if let retryNoEarlierThan, retryNoEarlierThan > now {
-            throw UsageProviderError.rateLimited(retryAfter: retryNoEarlierThan.timeIntervalSince(now))
+        if let retryNoEarlierThan, retryNoEarlierThan > Date() {
+            throw UsageProviderError.rateLimited(retryAfter: retryNoEarlierThan.timeIntervalSinceNow)
         }
-
-        // Codex can rotate its token between polls; this app never refreshes or writes it.
         let credential = try CodexCredentials.load(from: authURL)
-        var request = URLRequest(
-            url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!,
-            cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: 15
-        )
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue(credential.accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("no-cache, no-store", forHTTPHeaderField: "Cache-Control")
-
-        let (data, response) = try await session.data(for: request)
-        let http = response as? HTTPURLResponse
-        let status = http?.statusCode ?? 0
-        if status == 401 || status == 403 { throw UsageProviderError.needsAuth }
-        if status == 429 {
-            let receivedAt = Date()
-            let delay = max(60, Self.retryAfter(from: http, now: receivedAt) ?? 0)
-            retryNoEarlierThan = receivedAt.addingTimeInterval(delay)
-            archive.saveBackoffUntil(retryNoEarlierThan, providerID: id)
-            throw UsageProviderError.rateLimited(retryAfter: delay)
+        if let failureCooldownUntil, failureCooldownUntil > Date() {
+            throw failureCooldownError ?? UsageProviderError.badResponse(status: 0)
         }
-        guard (200..<300).contains(status) else {
-            throw UsageProviderError.badResponse(status: status)
+        self.failureCooldownUntil = nil
+        failureCooldownError = nil
+        do {
+            if appServer == nil {
+                appServer = try appServerExecutableURL.map {
+                    CodexAppServerClient(profile: profile, executableURL: $0)
+                } ?? CodexAppServerClient(profile: profile)
+            }
+            let response = try await appServer!.readRateLimits()
+            guard response.accountID == credential.accountID else {
+                throw UsageProviderError.badResponse(status: 0)
+            }
+            let windows = try CodexUsage.appServerWindows(from: response.rateLimits)
+            retryNoEarlierThan = nil
+            archive.saveBackoffUntil(nil, providerID: id)
+            refreshHistoryIfDue()
+            return ProviderSnapshot(
+                id: id, displayName: displayName, glyph: glyph,
+                fidelity: .official, status: .ok, windows: windows,
+                headlineID: "primary", weeklyID: "secondary",
+                tokenUsage: tokenUsage
+            )
+        } catch {
+            if let error = error as? UsageProviderError,
+               case .needsAuth = error { throw error }
+            if let error = error as? UsageProviderError,
+               case .credentialExpired = error { throw error }
+            failureCooldownError = error as? UsageProviderError ?? .badResponse(status: 0)
+            failureCooldownUntil = Date().addingTimeInterval(60)
+            throw error
         }
-
-        let windows = try CodexUsage.windows(from: data)
-
-        // The profile page's token statistics are the source for the chart and
-        // totals.
-        let profileUsage = try? await Self.fetchProfileUsage(
-            session: session, credential: credential
-        )
-        retryNoEarlierThan = nil
-        archive.saveBackoffUntil(nil, providerID: id)
-        return ProviderSnapshot(
-            id: id, displayName: displayName, glyph: glyph,
-            fidelity: .official, status: .ok, windows: windows,
-            headlineID: "primary",
-            weeklyID: "secondary",
-            tokenUsage: profileUsage
-        )
     }
 
-    private static func fetchProfileUsage(
-        session: URLSession,
-        credential: CodexCredentials.Credential
-    ) async throws -> CodexTokenUsage {
-        var request = URLRequest(
-            url: URL(string: "https://chatgpt.com/backend-api/wham/profiles/me")!,
-            cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: 15
-        )
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue(credential.accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("no-cache, no-store", forHTTPHeaderField: "Cache-Control")
-
-        let (data, response) = try await session.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 401 || status == 403 { throw UsageProviderError.needsAuth }
-        guard (200..<300).contains(status) else {
-            throw UsageProviderError.badResponse(status: status)
-        }
-        return try CodexUsage.profileUsage(from: data)
+    func signOut() async {
+        historyRefresh?.cancel()
+        historyRefresh = nil
+        await appServer?.shutdown()
+        appServer = nil
     }
 
-    private static func retryAfter(from response: HTTPURLResponse?, now: Date) -> TimeInterval? {
-        guard let header = response?.value(forHTTPHeaderField: "Retry-After")?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        else { return nil }
-        if let seconds = TimeInterval(header), seconds.isFinite { return max(0, seconds) }
+    private func refreshHistoryIfDue(now: Date = Date()) {
+        guard historyRefresh == nil,
+              historyRefreshStartedAt.map({ now.timeIntervalSince($0) >= 5 * 60 }) ?? true,
+              let appServer else { return }
+        historyRefreshStartedAt = now
+        historyRefresh = Task { [weak self] in
+            var refreshed: CodexTokenUsage?
+            do {
+                let data = try await appServer.readTokenUsage()
+                refreshed = try CodexUsage.appServerTokenUsage(from: data)
+            } catch {
+                // The next successful quota read may try again after the cooldown.
+            }
+            await self?.finishHistoryRefresh(refreshed)
+        }
+    }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "GMT")
-        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-        guard let date = formatter.date(from: header) else { return nil }
-        return max(0, date.timeIntervalSince(now))
+    private func finishHistoryRefresh(_ refreshed: CodexTokenUsage?) {
+        if let refreshed { tokenUsage = refreshed }
+        historyRefresh = nil
     }
 }
 

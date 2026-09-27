@@ -284,23 +284,46 @@ final class UsageStore: ObservableObject {
 
     /// Decides whether this tick is worth a request at all.
     private func tick() {
-        let waited = lastAttempt.map { pollingNow().timeIntervalSince($0) } ?? .greatestFiniteMagnitude
+        let now = pollingNow()
+        let waited = lastAttempt.map { now.timeIntervalSince($0) } ?? .greatestFiniteMagnitude
         guard Self.shouldRefresh(
             isBusy: isBusy(),
             sinceLastAttempt: waited,
-            idleInterval: idleRefreshInterval
+            idleInterval: idleRefreshInterval,
+            resetDue: hasWindowRolledOver(since: lastAttempt, at: now)
         ) else { return }
         refreshNow()
     }
 
-    /// Poll at full rate while something is running; otherwise wait out the
-    /// idle interval. Pure, so the schedule can be tested without a clock.
+    /// True when a window reset fell between the last attempt and now.
+    private func hasWindowRolledOver(since last: Date?, at now: Date) -> Bool {
+        Self.windowResetIsDue(snapshots: snapshots, since: last, at: now)
+    }
+
+    /// Uses the provider's reset timestamp as a clock edge, rather than
+    /// waiting for the normal quiet-interval poll to notice the new window.
+    static func windowResetIsDue(
+        snapshots: [ProviderSnapshot], since last: Date?, at now: Date
+    ) -> Bool {
+        guard let last else { return false }
+        return snapshots.contains { snapshot in
+            snapshot.windows.contains { window in
+                guard let resetsAt = window.resetsAt else { return false }
+                return resetsAt > last && resetsAt <= now
+            }
+        }
+    }
+
+    /// Poll at full rate while something is running or a window has just rolled
+    /// over; otherwise wait out the idle interval. Pure, so the schedule can be
+    /// tested without a clock.
     static func shouldRefresh(
         isBusy: Bool,
         sinceLastAttempt: TimeInterval,
-        idleInterval: TimeInterval
+        idleInterval: TimeInterval,
+        resetDue: Bool = false
     ) -> Bool {
-        isBusy || sinceLastAttempt >= idleInterval
+        isBusy || resetDue || sinceLastAttempt >= idleInterval
     }
 
     func refreshNow() {
