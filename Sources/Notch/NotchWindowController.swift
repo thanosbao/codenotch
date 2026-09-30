@@ -30,6 +30,7 @@ final class NotchWindowController {
     /// controller only holds the live value; persisting it per edge is
     /// Preferences' job, the same division `apply(edge:)` already keeps.
     var onReposition: ((CGFloat) -> Void)?
+    var onMoveToEdge: ((NotchEdge, CGFloat) -> Void)?
 
     private var panel: NotchPanel?
     private var hostingView: NotchHostingView<NotchRootView>?
@@ -75,6 +76,26 @@ final class NotchWindowController {
     private var visibility: NotchVisibility = .onHover
     /// Whether we have pushed the pointing hand onto the cursor stack.
     private var isPointing = false
+    private var passage: CornerPassageOverlay?
+    private var dragScreen: NSScreen?
+    private var dragStartEdge: NotchEdge?
+    private var pointerReading: Reading = .edge(.top)
+    private var pointerEdge: NotchEdge = .top
+    private var grip: CGFloat = 0
+    private var travelTarget: CGFloat?
+    private var travelShown: CGFloat?
+    private var travelVelocity: CGFloat = 0
+    private var follower: CADisplayLink?
+    private var ticker: DisplayTick?
+    private var lastTick: CFTimeInterval?
+    private var settling = false
+    private var overlaid = false
+    private var passing: (corner: BorderTrack.Corner, before: CGFloat, after: CGFloat)?
+    private var passageEdge: NotchEdge = .top
+    private var travelSizes: [NotchEdge: NotchViewModel.TravelSize] = [:]
+    private var heldCutout: HardwareNotch?
+    private var heldPointer: CGFloat = 0
+    private var restingOnGrip: CGPoint?
 
     /// Determines whether a full-screen application window is active on this notch's display.
     /// Default implementation queries WindowServer and NSWorkspace; overridable for testing.
@@ -121,7 +142,14 @@ final class NotchWindowController {
             for: NSApplication.didChangeScreenParametersNotification
         )
         .sink { [weak self] _ in
-            MainActor.assumeIsolated { self?.relocate() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let dragScreen = self.dragScreen,
+                   !NSScreen.screens.contains(where: { $0 === dragScreen }) {
+                    self.cancelBorderDrag()
+                }
+                self.relocate()
+            }
         }
         .store(in: &cancellables)
 
@@ -188,6 +216,8 @@ final class NotchWindowController {
     }
 
     func stop() {
+        cancelBorderDrag()
+        stopFollowing()
         setPointing(false)
         peekUntil = nil
         peekWork?.cancel()
@@ -211,6 +241,10 @@ final class NotchWindowController {
     /// been assigned, which is the single-controller case `.mainDisplay`
     /// scope leaves it in.
     func currentScreen() -> NSScreen? {
+        if let dragScreen,
+           NSScreen.screens.contains(where: { $0 === dragScreen }) {
+            return dragScreen
+        }
         if let assigned = assignedScreen,
            NSScreen.screens.contains(where: { $0 === assigned }) {
             return assigned
@@ -239,9 +273,15 @@ final class NotchWindowController {
             panel.contextMenuProvider = { [weak self] in self?.contextMenu() }
             panel.onClick = { [weak self] point in self?.handleClick(at: point) }
             panel.onDrag = { [weak self] dx, dy in self?.dragged(dx: dx, dy: dy) }
+            panel.onDragStart = { [weak self] in self?.beginBorderDrag() }
+            panel.startsDrag = { [weak self] point in
+                guard let self, let panel = self.panel, self.model.isExpanded else { return false }
+                let local = CGPoint(x: point.x, y: panel.frame.height - point.y)
+                return self.isOverGrip(local)
+            }
             panel.onDragEnd = { [weak self] in
                 guard let self else { return }
-                self.onReposition?(self.model.alongOffset)
+                self.endBorderDrag()
             }
 
             // The hosting view goes *inside* a plain container rather than
@@ -287,20 +327,500 @@ final class NotchWindowController {
         updateInteractiveRects()
     }
 
-    /// Feeds a raw pointer delta from an ⌥-drag into `model.alongOffset` and
-    /// re-places the panel at once, so the pill tracks the cursor rather than
-    /// catching up once the button lifts.
-    ///
-    /// Both deltas are used as `NSEvent` reports them, unflipped: `deltaY`
-    /// positive is the pointer moving *down* the screen, `deltaX` positive is
-    /// it moving *right*. `NotchGeometry` is written to match — it subtracts
-    /// the offset from a vertical edge's y (which AppKit grows *up*, so
-    /// subtracting more moves the pill down) and adds it to a horizontal
-    /// edge's x — so no sign flip belongs here; adding one would make the
-    /// pill run away from the cursor instead of following it.
     private func dragged(dx: CGFloat, dy: CGFloat) {
-        model.alongOffset += model.edge.isVertical ? dy : dx
+        NSCursor.closedHand.set()
+        guard let screen = dragScreen ?? currentScreen() else { return }
+        travel(on: screen)
+    }
+
+    private func beginBorderDrag() {
+        guard dragScreen == nil, !settling, let screen = currentScreen() else { return }
+        dragScreen = screen
+        dragStartEdge = model.edge
+        model.isBeingDragged = true
+        let fromHover = model.isExpanded && (model.isHoveringSettings || model.isHoveringMove)
+        clearHoverWork?.cancel()
+        clearHoverWork = nil
+        foldWork?.cancel()
+        foldWork = nil
+        model.hoveredIndex = nil
+        pickUp()
+        model.isHoveringSettings = false
+        model.isHoveringMove = false
+        model.carry = Carry(at: Date(), fromHover: fromHover)
+        setPointing(false)
+        travelSizes = Dictionary(uniqueKeysWithValues: NotchEdge.allCases.map { ($0, model.travelSize(on: $0)) })
+        grip(on: screen)
+        let overlay = CornerPassageOverlay(screen: screen)
+        overlay.prepare()
+        passage = overlay
+        travel(on: screen)
+        updateInteractiveRects()
+    }
+
+    private func endBorderDrag() {
+        guard dragScreen != nil, !settling else { return }
+        model.carry?.releasedAt = Date()
+        guard let screen = dragScreen else { finishDrag(); return }
+        let frame = screen.frame
+        let track = BorderTrack(width: frame.width, height: frame.height)
+        var target = travelTarget ?? travelShown
+        if let round = passing {
+            let (first, second) = BorderTrack.edges(of: round.corner)
+            let toward = round.before >= round.after ? first : second
+            let half = travelSize(toward).length / 2 + 1
+            target = track.wrapped(track.position(of: round.corner) + (toward == first ? -half : half))
+        }
+        guard let target else { finishDrag(); return }
+        travelTarget = resting(target, on: track)
+        settling = true
+        startFollowing()
+    }
+
+    private func resting(_ place: CGFloat, on track: BorderTrack) -> CGFloat {
+        let (edge, along) = track.place(at: place)
+        if besideTheHole(place, on: track, screen: dragScreen) { return place }
+        let half = travelSize(edge).length / 2
+        let extent = edge.isVertical ? track.height : track.width
+        let room = model.freeTrailingExtent
+        let low = half, high = extent - half - room
+        let held = low <= high ? min(max(along, low), high) : extent / 2
+        let point = edge.isVertical ? CGPoint(x: 0, y: held) : CGPoint(x: held, y: 0)
+        return track.position(on: edge, of: point)
+    }
+
+    private func finishDrag() {
+        settling = false
+        let landed = Date()
+        model.carry?.landedAt = landed
+        DispatchQueue.main.asyncAfter(deadline: .now() + Carry.settles) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.model.carry?.landedAt == landed else { return }
+                self.model.carry = nil
+                self.model.revealsTheOtherCopy = false
+            }
+        }
+        if model.carry?.fromHover == true {
+            restingOnGrip = NSEvent.mouseLocation
+            model.isHoveringMove = true
+        }
+        let landing = stopTravelling()
+        model.isBeingDragged = false
+        if let place = landing, let screen = dragScreen {
+            endOverlay(at: place, on: BorderTrack(width: screen.frame.width, height: screen.frame.height), frame: screen.frame)
+        }
+        let oldEdge = dragStartEdge
+        dragStartEdge = nil
+        passage?.hide()
+        passage = nil
+        setPointing(false)
+        putDown()
+        if let oldEdge, oldEdge != model.edge {
+            onMoveToEdge?(model.edge, model.alongOffset)
+        } else {
+            onReposition?(model.alongOffset)
+        }
+        dragScreen = nil
+        heldCutout = nil
+        updateInteractiveRects()
+        cursorMoved()
+    }
+
+    private func cancelBorderDrag() {
+        guard dragScreen != nil || passage != nil else { return }
+        stopFollowing()
+        passage?.hide()
+        passage = nil
+        overlaid = false
+        passing = nil
+        travelTarget = nil
+        travelShown = nil
+        travelVelocity = 0
+        settling = false
+        model.isBeingDragged = false
+        model.holdsOffTheCutout = false
+        model.revealsTheOtherCopy = false
+        model.carry = nil
+        model.isHoveringMove = false
+        dragStartEdge = nil
+        dragScreen = nil
+        heldCutout = nil
+        panel?.alphaValue = 1
         relocate()
+        updateInteractiveRects()
+    }
+
+    enum Reading: Equatable {
+        case edge(NotchEdge)
+        case corner(BorderTrack.Corner)
+    }
+
+    static let edgeSwitchMargin: CGFloat = 40
+    static let cornerReach: CGFloat = 160
+    static let followResponse: CGFloat = 0.2
+    static let followDamping: CGFloat = 0.84
+    static let settleResponse: CGFloat = 0.3
+    static let settleDamping: CGFloat = 0.74
+    static let maxStretch: CGFloat = 0.14
+    static let stretchSpeed: CGFloat = 2600
+
+    static func reading(of point: CGPoint, on track: BorderTrack, nearest: NotchEdge) -> Reading {
+        for corner in BorderTrack.Corner.allCases {
+            let (before, after) = BorderTrack.edges(of: corner)
+            if distance(to: before, of: point, on: track) < cornerReach,
+               distance(to: after, of: point, on: track) < cornerReach { return .corner(corner) }
+        }
+        return .edge(nearest)
+    }
+
+    static func place(of point: CGPoint, on track: BorderTrack, by reading: Reading) -> CGFloat {
+        switch reading {
+        case .edge(let edge): return track.position(on: edge, of: point)
+        case .corner(let corner):
+            let (before, after) = BorderTrack.edges(of: corner)
+            return track.wrapped(track.position(of: corner)
+                                 + distance(to: before, of: point, on: track)
+                                 - distance(to: after, of: point, on: track))
+        }
+    }
+
+    static func distance(to edge: NotchEdge, of point: CGPoint, on track: BorderTrack) -> CGFloat {
+        switch edge {
+        case .top: return max(0, point.y)
+        case .bottom: return max(0, track.height - point.y)
+        case .left: return max(0, point.x)
+        case .right: return max(0, track.width - point.x)
+        }
+    }
+
+    static func spring(gap: CGFloat, velocity: CGFloat, elapsed: CGFloat,
+                       response: CGFloat, damping: CGFloat) -> (moved: CGFloat, velocity: CGFloat) {
+        let omega = 2 * .pi / response
+        var moved: CGFloat = 0, velocity = velocity
+        for _ in 0..<2 {
+            let dt = elapsed / 2
+            let acceleration = omega * omega * (gap - moved) - 2 * damping * omega * velocity
+            velocity += acceleration * dt
+            moved += velocity * dt
+        }
+        return (moved, velocity)
+    }
+
+    static func stickyEdge(current: NotchEdge, pointer: CGPoint, frame: CGRect) -> NotchEdge {
+        let nearest = NotchEdge.allCases.min {
+            distance(from: $0, of: pointer, on: frame) < distance(from: $1, of: pointer, on: frame)
+        } ?? current
+        return distance(from: nearest, of: pointer, on: frame) + edgeSwitchMargin
+            < distance(from: current, of: pointer, on: frame) ? nearest : current
+    }
+
+    static func distance(from edge: NotchEdge, of point: CGPoint, on frame: CGRect) -> CGFloat {
+        switch edge {
+        case .top: return frame.maxY - point.y
+        case .bottom: return point.y - frame.minY
+        case .left: return point.x - frame.minX
+        case .right: return frame.maxX - point.x
+        }
+    }
+
+    static func offset(along edge: NotchEdge, at point: CGPoint, on frame: CGRect) -> CGFloat {
+        edge.isVertical ? frame.midY - point.y : point.x - frame.midX
+    }
+
+    private func travel(on screen: NSScreen) {
+        let frame = screen.frame
+        let track = BorderTrack(width: frame.width, height: frame.height)
+        let local = CGPoint(x: NSEvent.mouseLocation.x - frame.minX,
+                            y: frame.maxY - NSEvent.mouseLocation.y)
+        let edge = Self.stickyEdge(current: pointerEdge, pointer: NSEvent.mouseLocation, frame: frame)
+        let reading = Self.reading(of: local, on: track, nearest: edge)
+        if reading != pointerReading {
+            var step = Self.place(of: local, on: track, by: pointerReading)
+                - Self.place(of: local, on: track, by: reading)
+            if step > track.perimeter / 2 { step -= track.perimeter }
+            if step < -track.perimeter / 2 { step += track.perimeter }
+            grip += step
+            pointerReading = reading
+        }
+        pointerEdge = edge
+        travelTarget = track.wrapped(Self.place(of: local, on: track, by: pointerReading) + grip)
+        startFollowing()
+    }
+
+    private func grip(on screen: NSScreen) {
+        let frame = screen.frame
+        let track = BorderTrack(width: frame.width, height: frame.height)
+        pointerEdge = model.edge
+        let local = CGPoint(x: NSEvent.mouseLocation.x - frame.minX,
+                            y: frame.maxY - NSEvent.mouseLocation.y)
+        pointerReading = Self.reading(of: local, on: track, nearest: model.edge)
+        guard let panel else { grip = 0; return }
+        let wing = model.cellWing
+        let middle = model.edge.isVertical
+            ? CGPoint(x: 0, y: frame.maxY - panel.frame.maxY + wing.lead + wing.length / 2)
+            : CGPoint(x: panel.frame.minX - frame.minX + wing.lead + wing.length / 2, y: 0)
+        var distance = track.position(on: model.edge, of: middle)
+            - Self.place(of: local, on: track, by: pointerReading)
+        if distance > track.perimeter / 2 { distance -= track.perimeter }
+        if distance < -track.perimeter / 2 { distance += track.perimeter }
+        grip = distance
+    }
+
+    private func startFollowing() {
+        guard follower == nil, let screen = dragScreen else { return }
+        let tick = DisplayTick { [weak self] link in MainActor.assumeIsolated { self?.follow(link) } }
+        let link = screen.displayLink(target: tick, selector: #selector(DisplayTick.tick(_:)))
+        link.add(to: .main, forMode: .common)
+        follower = link
+        ticker = tick
+        lastTick = nil
+    }
+
+    private func stopFollowing() {
+        follower?.invalidate()
+        follower = nil
+        ticker = nil
+        lastTick = nil
+    }
+
+    private func follow(_ link: CADisplayLink) {
+        guard let target = travelTarget, let screen = dragScreen else { return }
+        let track = BorderTrack(width: screen.frame.width, height: screen.frame.height)
+        let elapsed = CGFloat(min(max(link.timestamp - (lastTick ?? link.timestamp - link.duration), 0), 1.0 / 30))
+        lastTick = link.timestamp
+        guard let shown = travelShown else {
+            travelShown = target
+            travelVelocity = 0
+            show(at: target, on: screen)
+            return
+        }
+        var gap = target - shown
+        if gap > track.perimeter / 2 { gap -= track.perimeter }
+        if gap < -track.perimeter / 2 { gap += track.perimeter }
+        if abs(gap) < (settling ? 0.3 : 0.05), abs(travelVelocity) < (settling ? 6 : 1) {
+            travelVelocity = 0
+            if settling { finishDrag() }
+            return
+        }
+        let result = Self.spring(gap: gap, velocity: travelVelocity, elapsed: elapsed,
+                                 response: settling ? Self.settleResponse : Self.followResponse,
+                                 damping: settling ? Self.settleDamping : Self.followDamping)
+        travelVelocity = result.velocity
+        let next = track.wrapped(shown + result.moved)
+        travelShown = next
+        show(at: next, on: screen)
+    }
+
+    @discardableResult
+    private func stopTravelling() -> CGFloat? {
+        stopFollowing()
+        let place = travelTarget ?? travelShown
+        if let place, let screen = dragScreen { travelShown = place; show(at: place, on: screen) }
+        travelTarget = nil
+        travelShown = nil
+        travelVelocity = 0
+        return place
+    }
+
+    private func show(at place: CGFloat, on screen: NSScreen) {
+        let frame = screen.frame
+        let track = BorderTrack(width: frame.width, height: frame.height)
+        if besideTheHole(place, on: track, screen: screen) {
+            if overlaid {
+                endOverlay(at: place, on: track, frame: frame)
+            } else {
+                put(at: place, on: track, frame: frame)
+            }
+            return
+        }
+        let stretch = Self.maxStretch * min(1, abs(travelVelocity) / Self.stretchSpeed)
+        showOverlay(at: place, on: track, screen: screen, stretch: stretch,
+                    heading: travelVelocity >= 0 ? 1 : -1)
+    }
+
+    private func besideTheHole(_ place: CGFloat, on track: BorderTrack, screen: NSScreen?) -> Bool {
+        guard let screen, let cutout = screen.hardwareNotch else { return false }
+        let (edge, along) = track.place(at: place)
+        guard edge == .top else { return false }
+        let free = along - track.width / 2 - cutout.width / 2
+            + NotchGeometry.cutoutOverlap - model.plainBarLength / 2
+        return NotchGeometry.cutoutFreelyNear(alongOffset: free, width: cutout.width, bar: model.plainBarLength)
+    }
+
+    private func put(at place: CGFloat, on track: BorderTrack, frame: CGRect) {
+        let (edge, along) = track.place(at: place)
+        if edge != model.edge { model.hoveredIndex = nil; model.edge = edge }
+        if edge == .top, let screen = dragScreen, heldCutout == nil {
+            heldCutout = screen.hardwareNotch
+        }
+        let point = edge.isVertical ? CGPoint(x: frame.minX, y: frame.maxY - along)
+                                    : CGPoint(x: frame.minX + along, y: frame.maxY)
+        var offset = Self.offset(along: edge, at: point, on: frame)
+        if let cutout = heldCutout, edge == .top {
+            heldPointer = offset - cutout.width / 2 + NotchGeometry.cutoutOverlap - model.plainBarLength / 2
+            model.holdsOffTheCutout = true
+            offset = NotchGeometry.magnetised(heldPointer, width: cutout.width, bar: model.plainBarLength)
+        }
+        model.alongOffset = offset
+        relocate()
+        updateInteractiveRects()
+    }
+
+    private func shape(at place: CGFloat, on track: BorderTrack, stretch: CGFloat = 0)
+    -> (round: (corner: BorderTrack.Corner, before: CGFloat, after: CGFloat)?, length: CGFloat, turned: CGFloat) {
+        let drawn = 1 + stretch
+        var length = travelSize(track.place(at: place).edge).length * drawn
+        guard var round = track.corner(for: place, length: length) else { return (nil, length, 0) }
+        let (first, second) = BorderTrack.edges(of: round.corner)
+        var turned: CGFloat = 0
+        for _ in 0..<2 {
+            let t = min(max(round.after / max(length, 1), 0), 1)
+            turned = t * t * (3 - 2 * t)
+            length = (travelSize(first).length + (travelSize(second).length - travelSize(first).length) * turned) * drawn
+            guard let again = track.corner(for: place, length: length) else { return (nil, length, turned) }
+            round = again
+        }
+        return (round, length, turned)
+    }
+
+    private func showOverlay(at hand: CGFloat, on track: BorderTrack, screen: NSScreen,
+                             stretch: CGFloat, heading: CGFloat) {
+        guard let overlay = passage else { return }
+        if !overlaid { passageEdge = model.edge }
+        let bleed = NotchRootView.bezelBleed
+        let back = heading * travelSize(track.place(at: hand).edge).length * stretch / 2
+        let place = track.wrapped(hand - back)
+        let (round, length, turned) = shape(at: place, on: track, stretch: stretch)
+        let thin = 1 - stretch * 0.35
+        let edges = round.map { BorderTrack.edges(of: $0.corner) }
+        let from = travelSize(edges?.before ?? track.place(at: place).edge)
+        let to = travelSize(edges?.after ?? track.place(at: place).edge)
+        func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * turned }
+        let size = model.sizeScale
+        overlay.show(CornerPassageView(
+            track: track, corner: round?.corner ?? .topLeft,
+            before: round?.before ?? length, after: round?.after ?? 0,
+            depth: bleed + (from.depth - bleed) * thin,
+            depthAfter: bleed + (to.depth - bleed) * thin, bleed: bleed,
+            cornerRadius: model.drawnCornerRadius * size, flare: model.flare * size,
+            place: place,
+            rings: passageRings(from: from, to: to, turned: turned, carriedBy: back),
+            ringInset: mix(from.ringAcross, to.ringAcross) - bleed,
+            ringScale: size,
+            straight: round == nil ? track.place(at: place).edge : nil,
+            arcs: passageArcs(at: place, length: length, on: track), carry: model.carry))
+        passing = round.map { ($0.corner, $0.before, $0.after) }
+        guard !overlaid else { return }
+        overlaid = true
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { guard let self, self.overlaid else { return }; self.panel?.alphaValue = 0 }
+        }
+    }
+
+    private func endOverlay(at place: CGFloat, on track: BorderTrack, frame: CGRect) {
+        guard overlaid else { return }
+        overlaid = false
+        passing = nil
+        put(at: place, on: track, frame: frame)
+        panel?.alphaValue = 1
+        let overlay = passage
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { guard self?.overlaid == false else { return }; overlay?.clear() }
+        }
+    }
+
+    private func travelSize(_ edge: NotchEdge) -> NotchViewModel.TravelSize {
+        travelSizes[edge] ?? model.travelSize(on: edge)
+    }
+
+    private func passageRings(from: NotchViewModel.TravelSize, to: NotchViewModel.TravelSize,
+                              turned: CGFloat, carriedBy back: CGFloat) -> [PassageRing] {
+        let sign: CGFloat = passageEdge == .top || passageEdge == .right ? 1 : -1
+        return model.snapshots.enumerated().map { index, snapshot in
+            let a = (from.ringCenters[safe: index] ?? 0) + from.cellShift - from.length / 2
+            let b = (to.ringCenters[safe: index] ?? 0) + to.cellShift - to.length / 2
+            return PassageRing(
+                id: snapshot.id,
+                cell: ProviderCell(snapshot: snapshot, activity: model.activity(for: snapshot),
+                                   showsActivityArc: !snapshot.providerID.hasPrefix("codex"),
+                                   showsRemaining: snapshot.providerID.hasPrefix("codex"),
+                                   isRefreshing: model.isRefreshing(snapshot), weeklyRing: model.weeklyRing,
+                                   showsReading: model.showsCellReading),
+                offset: sign * (a + (b - a) * turned) + back)
+        }
+    }
+
+    private func passageArcs(at place: CGFloat, length: CGFloat, on track: BorderTrack) -> [PassageArc] {
+        let scale = model.sizeScale
+        let sign: CGFloat = passageEdge == .top || passageEdge == .right ? 1 : -1
+        let flare = model.flare * scale
+        let end = track.wrapped(place + sign * length / 2)
+        let (edge, along) = track.place(at: end)
+        let runs: CGFloat = edge == .top || edge == .right ? 1 : -1
+        let bodyToward = runs * -sign
+        let trim = bodyToward > 0
+            ? MoveHandle.restingTrim(for: edge, convex: false)
+            : SettingsOrb.restingTrim(for: edge, convex: false)
+        let centre: CGPoint
+        switch edge {
+        case .top: centre = CGPoint(x: along, y: flare)
+        case .bottom: centre = CGPoint(x: along, y: track.height - flare)
+        case .left: centre = CGPoint(x: flare, y: along)
+        case .right: centre = CGPoint(x: track.width - flare, y: along)
+        }
+        let away = edge.isVertical ? CGPoint(x: 0, y: -bodyToward) : CGPoint(x: -bodyToward, y: 0)
+        return [PassageArc(id: 0, centre: centre, edge: edge, trim: trim,
+                           radius: (model.flare - NotchLayout.orbClearance) * scale,
+                           gap: NotchLayout.orbClearance * scale,
+                           stroke: NotchLayout.orbStroke * scale, away: away, reach: model.gripReach)]
+    }
+
+    private func heldCutoutOn(_ screen: NSScreen) -> HardwareNotch? {
+        model.edge == .top ? screen.hardwareNotch : nil
+    }
+
+    private func pickUp() {
+        guard let screen = dragScreen, let cutout = heldCutoutOn(screen), !model.holdsOffTheCutout else { return }
+        let free = NotchGeometry.freeOffset(fromStanding: model.alongOffset,
+                                            width: cutout.width, bar: model.plainBarLength)
+        let joined = model.mergesWithCutout
+        heldPointer = free
+        heldCutout = cutout
+        let lift = {
+            self.model.revealsTheOtherCopy = false
+            self.model.holdsOffTheCutout = true
+            self.model.alongOffset = free
+            self.relocate()
+        }
+        if joined { withAnimation(NotchMotion.lift, lift) } else { lift() }
+    }
+
+    private func putDown() {
+        guard let screen = dragScreen ?? currentScreen(), let cutout = heldCutout,
+              model.edge == .top else {
+            model.holdsOffTheCutout = false
+            model.revealsTheOtherCopy = false
+            heldCutout = nil
+            return
+        }
+        let target = NotchGeometry.cutoutLanding(alongOffset: model.alongOffset,
+                                                 width: cutout.width, bar: model.plainBarLength)
+        model.holdsOffTheCutout = false
+        if let target {
+            model.revealsTheOtherCopy = true
+            withAnimation(NotchMotion.unfold) { model.alongOffset = target; relocate() }
+        } else {
+            model.alongOffset = NotchGeometry.standingOffset(fromFree: model.alongOffset,
+                                                             width: cutout.width, bar: model.plainBarLength)
+            relocate()
+        }
+        heldCutout = nil
+        model.adopt(screen: screen)
+    }
+
+    private func nearestEdge(to point: CGPoint, track: BorderTrack) -> NotchEdge {
+        let edges = NotchEdge.allCases
+        return edges.min { Self.distance(to: $0, of: point, on: track) < Self.distance(to: $1, of: point, on: track) } ?? model.edge
     }
 
     // MARK: - Hit regions
@@ -312,25 +832,18 @@ final class NotchWindowController {
     }
 
     /// The notch itself, in panel coordinates with a top-left origin.
-    private var notchRect: CGRect {
-        placement.rect(
-            along: model.slack,
-            across: 0,
-            length: model.shapeLength * model.sizeScale,
-            depth: model.notchDepth * model.sizeScale
-        )
+    private var notchRects: [CGRect] {
+        model.wings.filter { $0.length > 0 }.map { wing in
+            placement.rect(along: wing.lead, across: 0, length: wing.length,
+                           depth: wing.depth * model.sizeScale)
+        }
     }
 
     /// What wakes the folded notch. Larger than the pill it surrounds, and
     /// exactly the hardware notch when it is joined to one — see
     /// `NotchViewModel.wakeLength` for both halves of that.
     private var pillRect: CGRect {
-        placement.rect(
-            along: model.slack + (model.shapeLength * model.sizeScale - model.wakeLength) / 2,
-            across: 0,
-            length: model.wakeLength,
-            depth: model.wakeDepth
-        )
+        model.wakeRect(panelSize: panel?.frame.size ?? model.panelSize)
     }
 
     /// The handle's bounding box, for deciding whether the panel takes events
@@ -338,7 +851,9 @@ final class NotchWindowController {
     /// than a box can answer — see `isOverHandle`.
     private var handleRect: CGRect {
         let side = NotchLayout.orbHotZone
-        let boxes = model.orbHandlePoints.map { point -> CGRect in
+        let boxes = (model.orbHandlePoints +
+                     ((model.isHoveringSettings || model.isHoveringMove) ? [model.gripPoint] : []))
+            .map { point -> CGRect in
             let centre = placement.point(along: model.slack + point.x * model.sizeScale,
                                          across: point.y * model.sizeScale)
             return CGRect(x: centre.x - side / 2, y: centre.y - side / 2,
@@ -359,13 +874,25 @@ final class NotchWindowController {
         )
     }
 
+    private func isOverGrip(_ local: CGPoint) -> Bool {
+        model.isOnGrip(
+            along: (placement.along(of: local) - model.slack) / model.sizeScale,
+            across: placement.across(of: local) / model.sizeScale
+        )
+    }
+
     /// The only region that takes the mouse. Everything else in the panel is a
     /// hole — which matters far more folded than open, since the point of
     /// folding away is to stop being in the way.
-    private var liveRect: CGRect {
-        guard model.isExpanded else { return pillRect }
-        // The orb hangs below the shape, so the live region is both together.
-        return notchRect.union(handleRect)
+    private var liveRects: [CGRect] {
+        guard model.isExpanded else { return [pillRect] }
+        // Keep separated wings separate: their union would claim the hardware
+        // notch between them as interactive space.
+        return notchRects + [handleRect]
+    }
+
+    private func keepsOpen(at local: CGPoint) -> Bool {
+        pillRect.contains(local) || liveRects.contains { $0.contains(local) }
     }
 
     /// The card, its tail, and the gap between the tail and the notch — so
@@ -401,7 +928,7 @@ final class NotchWindowController {
     }
 
     private func updateInteractiveRects() {
-        var rects = [liveRect]
+        var rects = liveRects
         if model.isExpanded, let index = model.hoveredIndex, let card = tooltipRect(index: index) {
             rects.append(card)
         }
@@ -451,27 +978,36 @@ final class NotchWindowController {
 
     private func cursorMoved() {
         guard let panel else { return }
-        let local = localCursor(in: panel.frame)
+        cursorMoved(at: localCursor(in: panel.frame))
+    }
+
+    func cursorMoved(at local: CGPoint) {
+        guard passage == nil else { return }
         let overTooltip = model.hoveredIndex
             .flatMap(tooltipRect(index:))
             .map { model.isExpanded && $0.contains(local) } ?? false
-        setExpanded(liveRect.contains(local) || overTooltip)
+        setExpanded(keepsOpen(at: local) || overTooltip)
 
-        var target: Int?
-        if model.isExpanded, notchRect.contains(local) {
-            target = cellIndex(along: placement.along(of: local))
-        } else if model.isExpanded, let current = model.hoveredIndex,
-                  let card = tooltipRect(index: current),
-                  card.contains(local) {
-            target = current
+        let target = hoverTarget(at: local)
+
+        var overHandle = model.isExpanded && isOverHandle(local)
+        var overMove = model.isExpanded && !overHandle && isOverGrip(local)
+        if let rest = restingOnGrip {
+            if NSEvent.mouseLocation == rest {
+                overHandle = false
+                overMove = true
+            } else {
+                restingOnGrip = nil
+            }
         }
-
-        let overHandle = model.isExpanded && isOverHandle(local)
         if model.isHoveringSettings != overHandle {
             model.isHoveringSettings = overHandle
         }
+        if model.isHoveringMove != overMove {
+            model.isHoveringMove = overMove
+        }
         setPointing(
-            Self.wantsPointingHand(isExpanded: model.isExpanded, cellIndex: target) || overHandle
+            Self.wantsPointingHand(isExpanded: model.isExpanded, cellIndex: target) || overHandle || overMove
         )
 
         if let target {
@@ -495,6 +1031,18 @@ final class NotchWindowController {
         }
 
         updateInteractiveRects()
+    }
+
+    func hoverTarget(at local: CGPoint) -> Int? {
+        guard model.isExpanded else { return nil }
+        if notchRects.contains(where: { $0.contains(local) }) {
+            return cellIndex(along: placement.along(of: local))
+        }
+        if let current = model.hoveredIndex,
+           let card = tooltipRect(index: current), card.contains(local) {
+            return current
+        }
+        return nil
     }
 
     /// Opens on contact, folds shut after a pause — unless it has been pinned
@@ -600,7 +1148,7 @@ final class NotchWindowController {
             setExpanded(true)
             return
         }
-        if notchRect.contains(local),
+        if (model.mergesWithCutout || notchRects.contains(where: { $0.contains(local) })),
            let index = cellIndex(along: placement.along(of: local)),
            model.snapshots.indices.contains(index) {
             if let onRefreshProvider {
@@ -830,7 +1378,7 @@ final class NotchWindowController {
                 guard !self.model.staysOpen else { return }
                 // Left open if the peek did its job and the pointer is already
                 // there; the ordinary hover fold takes it from here.
-                guard !self.liveRect.contains(self.localCursor(in: panel.frame)) else { return }
+                guard !self.keepsOpen(at: self.localCursor(in: panel.frame)) else { return }
                 withAnimation(NotchMotion.unfold) {
                     self.model.isExpanded = false
                     self.model.hoveredIndex = nil
@@ -889,7 +1437,7 @@ final class NotchWindowController {
     func cellIndex(along: CGFloat) -> Int? {
         let pitch = model.cellPitch * model.sizeScale
         for index in model.snapshots.indices {
-            let centre = model.slack + model.ringCenter(index: index) * model.sizeScale
+            let centre = model.ringPanelCenter(index: index)
             if abs(along - centre) <= pitch / 2 { return index }
         }
         return nil
@@ -994,5 +1542,17 @@ final class MenuActions: NSObject {
 extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+final class DisplayTick: NSObject {
+    private let action: (CADisplayLink) -> Void
+
+    init(_ action: @escaping (CADisplayLink) -> Void) {
+        self.action = action
+    }
+
+    @objc func tick(_ link: CADisplayLink) {
+        action(link)
     }
 }

@@ -310,6 +310,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fleet.onReposition = { [weak preferences] offset in
                 preferences?.setOffset(offset, for: preferences?.notchEdge ?? .right)
             }
+            fleet.onMoveToEdge = { [weak preferences] edge, offset in
+                preferences?.setOffset(offset, for: edge)
+                preferences?.notchEdge = edge
+            }
             fleet.onToggleKeepOpen = { [weak preferences] in
                 guard let preferences else { return }
                 preferences.notchVisibility = preferences.notchVisibility == .alwaysShow

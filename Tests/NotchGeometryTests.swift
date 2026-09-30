@@ -5,6 +5,7 @@ private struct FakeScreen: ScreenDescribing {
     var frameValue: CGRect
     var visibleFrameValue: CGRect
     var displayIdentifier: String? = nil
+    var hardwareNotch: HardwareNotch? = nil
 }
 
 final class NotchGeometryTests: XCTestCase {
@@ -69,6 +70,51 @@ final class NotchGeometryTests: XCTestCase {
         )
 
         XCTAssertEqual(result?.displayIdentifier, "active")
+    }
+
+    func testHardwareCutoutUsesAuxiliaryStripHeightWhenSafeAreaIsZero() {
+        XCTAssertEqual(HardwareNotch.height(safeAreaTop: 0, beside: [37.5, 37.5]), 37.5)
+        XCTAssertEqual(HardwareNotch.height(safeAreaTop: 37.5, beside: [30, 36]), 37.5)
+    }
+
+    func testTopPlacementJoinsTheMeasuredHardwareCutoutAndExternalDisplayStaysCentered() {
+        let builtIn = FakeScreen(
+            frameValue: CGRect(x: 0, y: 0, width: 1710, height: 1112),
+            visibleFrameValue: CGRect(x: 0, y: 0, width: 1710, height: 1074.5),
+            hardwareNotch: HardwareNotch(width: 208, height: 37.5)
+        )
+        let external = FakeScreen(
+            frameValue: CGRect(x: -397, y: 1112, width: 2560, height: 1440),
+            visibleFrameValue: CGRect(x: -397, y: 1112, width: 2560, height: 1440)
+        )
+        let builtInFrame = NotchGeometry.panelFrame(
+            for: builtIn, panelSize: CGSize(width: 700, height: 200), edge: .top
+        )
+        let externalFrame = NotchGeometry.panelFrame(
+            for: external, panelSize: CGSize(width: 700, height: 200), edge: .top
+        )
+
+        XCTAssertEqual(builtInFrame.midX, 855, accuracy: 0.5)
+        XCTAssertEqual(builtInFrame.maxY, 1112, accuracy: 0.001)
+        XCTAssertEqual(externalFrame.midX, external.frameValue.midX, accuracy: 0.5)
+        XCTAssertEqual(externalFrame.maxY, 2552, accuracy: 0.001)
+    }
+
+    func testCutoutJoinHasAReleaseRangeAndNonCutoutScreenNeverJoins() {
+        let builtIn = FakeScreen(
+            frameValue: CGRect(x: 0, y: 0, width: 1710, height: 1112),
+            visibleFrameValue: CGRect(x: 0, y: 0, width: 1710, height: 1074.5),
+            hardwareNotch: HardwareNotch(width: 208, height: 37.5)
+        )
+        XCTAssertEqual(NotchGeometry.cutoutProximity(
+            for: builtIn, edge: .top, alongOffset: 0
+        )?.joined, true)
+        XCTAssertEqual(NotchGeometry.cutoutProximity(
+            for: builtIn, edge: .top, alongOffset: 20
+        )?.joined, false)
+        XCTAssertNil(NotchGeometry.cutoutProximity(
+            for: screen, edge: .top, alongOffset: 0
+        ))
     }
 }
 

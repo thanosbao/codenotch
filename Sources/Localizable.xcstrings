@@ -4841,7 +4841,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已用其 %@ 额度的 %lld%%。"
+            "value": "已用其 %2$@ 额度的 %1$lld%%。"
           }
         }
       }
@@ -5216,6 +5216,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "按住 ⌥ 沿边缘拖动胶囊"
+          }
+        }
+      }
+    },
+    "Drag the six-dot handle to move the notch around the screen edge": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖动六点手柄，可沿屏幕边缘移动刘海"
+          }
+        }
+      }
+    },
+    "Move notch handle": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动刘海手柄"
+          }
+        }
+      }
+    },
+    "Drag to move the notch around the screen edge": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖动以沿屏幕边缘移动刘海"
           }
         }
       }

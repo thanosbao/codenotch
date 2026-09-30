@@ -245,6 +245,58 @@ private struct ActivityArc: View {
     }
 }
 
+struct ProviderReading: View {
+    let snapshot: ProviderSnapshot
+    var showsRemaining = false
+    var across: CGFloat?
+    var acrossAlignment: Alignment = .leading
+
+    var acrossWidth: CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(
+            ofSize: Typography.percentAcrossSize,
+            weight: .semibold
+        )
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    private var text: String {
+        guard snapshot.hasReading else { return "—" }
+        if showsRemaining,
+           let fraction = snapshot.usedFraction,
+           let remaining = Percent.remainingText(for: fraction) {
+            return remaining + "%"
+        }
+        return snapshot.headlineText
+    }
+
+    var body: some View {
+        if let across {
+            Text(text)
+                .font(Typography.percentAcross)
+                .monospacedDigit()
+                .foregroundStyle(snapshot.showsLocalPerformance && snapshot.localPerformance == nil
+                                 ? Palette.textSecondary : Palette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .frame(width: across, alignment: acrossAlignment)
+                .contentTransition(.numericText())
+                .animation(NotchMotion.reading, value: text)
+        } else {
+            Text(text)
+                .font(Typography.percent)
+                .foregroundStyle(snapshot.showsLocalPerformance && snapshot.localPerformance == nil
+                                 ? Palette.textSecondary : Palette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(snapshot.localModel == nil ? 1 : 0.5)
+                .fixedSize(horizontal: snapshot.localModel == nil, vertical: false)
+                .frame(width: snapshot.localModel == nil ? nil : NotchLayout.ringDiameter,
+                       height: NotchLayout.percentLineHeight)
+                .contentTransition(.numericText())
+                .animation(NotchMotion.reading, value: text)
+        }
+    }
+}
+
 struct ProviderCell: View {
     let snapshot: ProviderSnapshot
     var activity: ActivitySummary?
@@ -252,16 +304,13 @@ struct ProviderCell: View {
     var showsRemaining: Bool = false
     var isRefreshing: Bool = false
     var weeklyRing: WeeklyRing = .off
+    var showsReading: Bool = true
 
     private var effectiveWeeklyRing: WeeklyRing {
         snapshot.providerID.hasPrefix("codex") ? .inside : weeklyRing
     }
 
     /// A dash, not "0%": nothing read is not the same as nothing used.
-    private var readingText: String {
-        snapshot.hasReading ? snapshot.headlineText : "—"
-    }
-
     var body: some View {
         VStack(spacing: NotchLayout.ringLabelGap) {
             ProviderRing(
@@ -277,19 +326,9 @@ struct ProviderCell: View {
                 weeklyFraction: snapshot.hasReading ? snapshot.weeklyFraction : nil,
                 weeklyRing: effectiveWeeklyRing
             )
-            Text(readingText)
-                .font(Typography.percent)
-                .foregroundStyle(snapshot.showsLocalPerformance && snapshot.localPerformance == nil
-                                 ? Palette.textSecondary : Palette.textPrimary)
-                // Keep local speeds inside the ring's column so longer units
-                // cannot consume the notch's existing side margins.
-                .lineLimit(1)
-                .minimumScaleFactor(snapshot.localModel == nil ? 1 : 0.5)
-                .fixedSize(horizontal: snapshot.localModel == nil, vertical: false)
-                .frame(width: snapshot.localModel == nil ? nil : NotchLayout.ringDiameter,
-                       height: NotchLayout.percentLineHeight)
-                .contentTransition(.numericText())
-                .animation(NotchMotion.reading, value: readingText)
+            if showsReading {
+                ProviderReading(snapshot: snapshot, showsRemaining: showsRemaining)
+            }
         }
         .frame(height: NotchLayout.cellExtent)
         .accessibilityElement(children: .ignore)

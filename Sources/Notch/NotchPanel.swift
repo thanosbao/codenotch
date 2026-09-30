@@ -16,6 +16,7 @@ final class NotchPanel: NSPanel {
     /// event — not a cumulative offset, so the caller decides what "along the
     /// edge" means for the current one. Chosen over a plain click-and-hold
     /// threshold so an ordinary click never risks being read as a tiny nudge.
+    var onDragStart: (() -> Void)?
     var onDrag: ((CGFloat, CGFloat) -> Void)?
     /// The ⌥-drag ended. Where to persist the offset the drags above moved to.
     var onDragEnd: (() -> Void)?
@@ -31,14 +32,22 @@ final class NotchPanel: NSPanel {
         NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
 
+    /// Whether a press at this point, in the window's own coordinates, is on
+    /// something that carries the notch without ⌥ — the grip beside the
+    /// settings button.
+    var startsDrag: ((CGPoint) -> Bool)?
+
     override func mouseDown(with event: NSEvent) {
         guard let view = contentView, view.hitTest(event.locationInWindow) != nil else {
             return super.mouseDown(with: event)
         }
-        guard event.modifierFlags.contains(.option), onDrag != nil else {
+        let carries = event.modifierFlags.contains(.option)
+            || startsDrag?(event.locationInWindow) == true
+        guard carries, onDrag != nil else {
             onClick?(event.locationInWindow)
             return
         }
+        onDragStart?()
         trackOptionDrag()
     }
 

@@ -5,6 +5,8 @@ import SwiftUI
 enum Typography {
     /// The percent under each provider ring. Cap height 27px in the frame.
     static let percent = Font.system(size: Design.fontSize(capPixels: 27), weight: .semibold)
+    static let percentAcrossSize = Design.fontSize(capPixels: 47)
+    static let percentAcross = Font.system(size: percentAcrossSize, weight: .semibold)
 
     /// "Claude Usage". Cap height 26px.
     static let cardTitle = Font.system(size: Design.fontSize(capPixels: 26), weight: .semibold)

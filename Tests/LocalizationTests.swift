@@ -134,6 +134,13 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(L10n.t("Settings…", locale: zhHans), "设置…")
     }
 
+    func testThresholdAlertFormatsPercentBeforeWindowInSimplifiedChinese() {
+        XCTAssertEqual(
+            L10n.t("\(82)% of its \("weekly") limit used.", locale: zhHans),
+            "已用其 weekly 额度的 82%。"
+        )
+    }
+
     func testMenuCopyInEnglishWhenAsked() {
         XCTAssertEqual(L10n.t("Always show", locale: english), "Always show")
         XCTAssertEqual(L10n.t("Settings…", locale: english), "Settings…")

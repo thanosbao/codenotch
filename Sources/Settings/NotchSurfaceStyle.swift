@@ -30,6 +30,13 @@ enum NotchSurfaceStyle: String, CaseIterable, Identifiable {
         self == .glass && Self.glassAvailable ? .glass : .solid
     }
 
+    var isGlass: Bool { effective == .glass }
+
+    @available(macOS 26.0, *)
+    var glass: Glass { .regular }
+
+    var glassDim: Color? { nil }
+
     var title: String {
         switch self {
         case .glass: return L10n.t("Liquid Glass")
