@@ -726,17 +726,9 @@ final class AlwaysShowTests: XCTestCase {
     }
 }
 
-/// A click that arrives while the notch is still folded used to pin it —
-/// permanently, via `togglePinned()` — even though nobody had seen it open.
-/// The pill's own hot zone is deliberately generous, since it is a small
-/// target on a screen edge, which made it easy to trip by accident: reported
-/// as "hover mode sticks open after a stray click".
-///
-/// Pinning stays exactly what a click on a notch that is *already* open does
-/// — that part is documented and unchanged. What changes is the other guard:
-/// a click that arrives before the notch has opened now just opens it, the
-/// same as the pointer arriving would, so it folds back on its own once the
-/// pointer leaves.
+/// In hover mode, a click can open a folded notch but must not create a
+/// standing hold. Clicks on expanded rings and the settings handle keep their
+/// specific actions; ordinary expanded chrome remains hover-controlled.
 @MainActor
 final class StrayClickPinTests: XCTestCase {
     func testAClickOnAFoldedNotchOpensWithoutPinning() {
@@ -757,6 +749,52 @@ final class StrayClickPinTests: XCTestCase {
         for _ in 0..<3 { controller.handleClick(at: .zero) }
         XCTAssertFalse(controller.model.isPinned)
         XCTAssertTrue(controller.model.isExpanded)
+    }
+
+    func testExpandedBodyClickThroughAnActualPanelDoesNotPinAndFoldsAfterPointerLeaves() async throws {
+        guard let screen = NSScreen.screens.first(where: { $0.hardwareNotch != nil }) else {
+            throw XCTSkip("Requires a built-in display notch")
+        }
+
+        let controller = NotchWindowController()
+        controller.assignedScreen = screen
+        controller.model.edge = .top
+        controller.model.snapshots = [ProviderSnapshot(
+            id: "codex-profile", displayName: "Codex", glyph: .openai,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(id: "five-hour", label: "5h", usedFraction: 0.2),
+                      LimitWindow(id: "weekly", label: "Weekly", usedFraction: 0.3)],
+            headlineID: "five-hour", weeklyID: "weekly", sourceProviderID: "codex"
+        )]
+        controller.model.isExpanded = true
+        controller.relocate()
+        defer { controller.stop() }
+
+        let panel = try XCTUnwrap(controller.panelContentViewForTesting?.window as? NotchPanel)
+        let bodyWing = try XCTUnwrap(controller.model.wings.first {
+            !$0.carriesCells && $0.length > 0
+        })
+        let placement = NotchPlacement(edge: .top, panelSize: panel.frame.size)
+        let local = placement.point(along: bodyWing.lead + bodyWing.length / 2,
+                                    across: bodyWing.depth * controller.model.sizeScale / 2)
+        XCTAssertNil(controller.cellIndex(along: local.x), "the click must miss provider rings")
+
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: CGPoint(x: local.x, y: panel.frame.height - local.y),
+            modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber,
+            context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+        ))
+        panel.mouseDown(with: event)
+
+        XCTAssertTrue(controller.model.isExpanded)
+        XCTAssertFalse(controller.model.isPinned,
+                       "an ordinary click on expanded bar body must not create a standing hold")
+
+        controller.cursorMoved(at: CGPoint(x: panel.frame.midX, y: panel.frame.height - 1))
+        try await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertFalse(controller.model.isExpanded,
+                       "hover mode must fold after the pointer leaves the expanded body")
     }
 }
 

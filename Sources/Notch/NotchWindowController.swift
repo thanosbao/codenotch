@@ -57,11 +57,9 @@ final class NotchWindowController {
     private var peekWork: DispatchWorkItem?
     /// The session a peek is currently offering, and how long the offer lasts.
     ///
-    /// A click on the open notch normally pins it or refetches a ring; while
-    /// this is set and unexpired it jumps to the session instead. The expiry is
-    /// what keeps the two apart — without it, the *next* click on the notch,
-    /// minutes later and about something else, would still be raising a
-    /// terminal window.
+    /// While this is set and unexpired, a click on the open notch jumps to the
+    /// session instead of its usual ring refresh or settings action. The expiry
+    /// keeps a later, unrelated click from raising a terminal window.
     private var pendingFocus: (pid: pid_t, until: Date)?
     /// When the current peek's five seconds are up.
     ///
@@ -1095,8 +1093,8 @@ final class NotchWindowController {
         }
     }
 
-    /// A click on a ring refetches that provider; a click anywhere else on the
-    /// open notch pins it. The ring is the more specific target, so it wins.
+    /// A click on a ring refetches that provider. Other expanded chrome has no
+    /// click action; in particular, it must not create a hidden standing hold.
     func handleClick(at locationInWindow: CGPoint) {
         guard let panel else {
             setExpanded(true)
@@ -1141,10 +1139,9 @@ final class NotchWindowController {
             // also pin it. The pill's hot zone is deliberately generous, since
             // it is a small target on a screen edge, so a click aimed at
             // something else nearby can land here without the notch ever
-            // having been seen open. Pinning is what a click on a notch that
-            // is *already* open does; folding it back in later is exactly
-            // the ordinary hover behaviour, which a plain `setExpanded` leaves
-            // intact.
+            // having been seen open. The click only opens it; folding it back
+            // in later is the ordinary hover behaviour, which a plain
+            // `setExpanded` leaves intact.
             setExpanded(true)
             return
         }
@@ -1157,7 +1154,6 @@ final class NotchWindowController {
             }
             return
         }
-        togglePinned()
     }
 
     /// Move the notch to another screen edge.
@@ -1415,8 +1411,7 @@ final class NotchWindowController {
         stop()
     }
 
-    /// Clicking the open notch pins it, so it stays put while you read it.
-    /// This is deliberately separate from the menu's standing choice.
+    /// Toggle the transient pin independently of the menu's standing choice.
     func togglePinned() {
         guard !model.isAlwaysOn else { return }
         model.isPinned.toggle()
