@@ -1,6 +1,1414 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Alert when %@ crosses 80%% and 100%% of a limit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当 %@ 的额度越过 80%% 和 100%% 时提醒。"
+          }
+        }
+      }
+    },
+    "%@%% deficit": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%% 透支"
+          }
+        }
+      }
+    },
+    "%@%% reserved": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%% 预留"
+          }
+        }
+      }
+    },
+    "complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中"
+          }
+        }
+      }
+    },
+    "Local Session": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地会话"
+          }
+        }
+      }
+    },
+    "Active": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用中"
+          }
+        }
+      }
+    },
+    "Ensure Antigravity IDE is running to read this account.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先运行 Antigravity IDE，才能读取此账号。"
+          }
+        }
+      }
+    },
+    "Automatic": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动"
+          }
+        }
+      }
+    },
+    "5-Hour Limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 小时额度"
+          }
+        }
+      }
+    },
+    "Weekly Limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每周额度"
+          }
+        }
+      }
+    },
+    "Liquid Glass": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "液态玻璃"
+          }
+        }
+      }
+    },
+    "Solid black": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "纯黑"
+          }
+        }
+      }
+    },
+    "System Liquid Glass. Follows this Mac's Appearance settings, including Clear or Tinted glass and light or dark mode.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统液态玻璃。跟随这台 Mac 的外观设置，包括通透或着色玻璃，以及浅色或深色模式。"
+          }
+        }
+      }
+    },
+    "The original opaque black notch. Always dark, whatever the Mac's appearance.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原来的不透明黑刘海。无论 Mac 外观如何，始终是深色。"
+          }
+        }
+      }
+    },
+    "A second ring for the week, Liquid Glass, French, and Claude Desktop read straight from its own cache.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "周额度有了自己的圆环，液态玻璃，法语，以及直接从 Claude Desktop 自己的缓存读取用量。"
+          }
+        }
+      }
+    },
+    "The week gets a ring of its own": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "周额度有了自己的圆环"
+          }
+        }
+      }
+    },
+    "A second arc, inside the headline ring or outside it, for providers that publish a weekly limit as well as a session one. Off by default; Appearance has the switch.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二条弧，画在主环内侧或外侧，给同时公布每周额度和会话额度的服务。默认关闭；外观里有开关。"
+          }
+        }
+      }
+    },
+    "The open notch, its tooltip and the settings orb take the system's own glass surface, so they refract what is behind them instead of sitting on it. Reduce Transparency turns it solid.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开的刘海、提示卡和设置圆球用上系统自己的玻璃表面，折射背后的内容，而不是盖在上面。「降低透明度」会变成实心。"
+          }
+        }
+      }
+    },
+    "Français": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Français"
+          }
+        }
+      }
+    },
+    "A third language in Appearance, alongside English and 简体中文.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观里第三种语言，与 English 和 简体中文并列。"
+          }
+        }
+      }
+    },
+    "Claude Desktop usage, read from its own cache": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop 用量，从它自己的缓存读取"
+          }
+        }
+      }
+    },
+    "A third way to read a Claude account, used when the CLI and the token cannot answer. Nothing is sent anywhere: the cache is on this Mac and is only decompressed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取 Claude 账号的第三条路径，在 CLI 和令牌答不上来时使用。什么都不会发出去：缓存就在这台 Mac 上，只做解压。"
+          }
+        }
+      }
+    },
+    "Claude Code found where npm puts it": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "能找到 npm 安装的 Claude Code"
+          }
+        }
+      }
+    },
+    "An install under nvm, Volta or pnpm is discovered like any other, which also restores the background sign-in renewal for those setups.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm、Volta 或 pnpm 下的安装也会被找到，这些安装的后台登录续期也一并恢复。"
+          }
+        }
+      }
+    },
+    "No more transcript folders left behind": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再留下 transcript 文件夹"
+          }
+        }
+      }
+    },
+    "Reading Claude usage ran in a fresh directory every poll, and Claude Code filed a transcript folder for each one. It now runs from a single place, in print mode, writing no session at all.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以前每次轮询 Claude 用量都在一个新目录里跑，Claude Code 会给每一次建一个 transcript 文件夹。现在固定在一处、以 print 模式运行，不再写任何会话。"
+          }
+        }
+      }
+    },
+    "Reset times follow the Mac's clock": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置时间跟随 Mac 的时钟"
+          }
+        }
+      }
+    },
+    "A 24-hour Mac gets 24-hour reset times instead of AM and PM.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 小时制的 Mac 会显示 24 小时制的重置时间，而不是上午、下午。"
+          }
+        }
+      }
+    },
+    "A finished session says so": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束的会话会标明"
+          }
+        }
+      }
+    },
+    "Agent sessions carry a success state, so a run that has completed reads differently from one still going.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "助手会话带有完成状态，已经跑完的和还在进行的看起来不一样。"
+          }
+        }
+      }
+    },
+    "Antigravity: choose which limit leads": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antigravity：选择哪项额度打头"
+          }
+        }
+      }
+    },
+    "The headline ring can follow a named limit rather than whichever happens to be tightest, and a CLI-only install counts as a real account.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主圆环可以跟着指定的额度走，而不一定是最紧的那项；只有 CLI 的安装也算真实账号。"
+          }
+        }
+      }
+    },
+    "Only the hardware notch wakes a notch joined to it": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有硬件刘海才会唤醒贴上去的刘海"
+          }
+        }
+      }
+    },
+    "A notch merged with the camera housing no longer wakes from a pointer anywhere along the whole top edge.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和摄像头凹槽合在一起的刘海，不再被整条上边缘任意位置的指针唤醒。"
+          }
+        }
+      }
+    },
+    "Weekly ring": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每周圆环"
+          }
+        }
+      }
+    },
+    "Surface": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面"
+          }
+        }
+      }
+    },
+    "Notch reads": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刘海显示"
+          }
+        }
+      }
+    },
+    "Choose which limit appears in the main notch for Antigravity.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Antigravity 在主刘海里显示哪项额度。"
+          }
+        }
+      }
+    },
+    "Off": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "Inside": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内侧"
+          }
+        }
+      }
+    },
+    "Outside": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外侧"
+          }
+        }
+      }
+    },
+    "One ring per provider, showing the headline limit. The weekly allowance stays in the hover card.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个服务一个圆环，显示主额度。每周额度仍在提示卡里。"
+          }
+        }
+      }
+    },
+    "A thinner ring for the weekly limit, drawn inside the main one. It shares the gap with the working indicator.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "较细的内环显示每周额度。Codex 内环始终显示每周剩余额度，不会被活动动画替换。"
+          }
+        }
+      }
+    },
+    "A thinner ring for the weekly limit, drawn around the main one, in the margin between the ring and the notch edge.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一条更细的每周额度圆环，画在主环外侧，圆环和刘海边缘之间的空隙里。"
+          }
+        }
+      }
+    },
+    "Run %@ in Terminal to sign in to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在终端运行 %@ 以登录 %@。"
+          }
+        }
+      }
+    },
+    "Requests today · last used %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日请求 · 上次使用 %@"
+          }
+        }
+      }
+    },
+    "yesterday": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "昨天"
+          }
+        }
+      }
+    },
+    "%lld days ago": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 天前"
+          }
+        }
+      }
+    },
+    "Personal": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人"
+          }
+        }
+      }
+    },
+    "Gemini Models": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemini 模型"
+          }
+        }
+      }
+    },
+    "5-hour Limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 小时额度"
+          }
+        }
+      }
+    },
+    "Claude and GPT models": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 和 GPT 模型"
+          }
+        }
+      }
+    },
+    "Question": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提问"
+          }
+        }
+      }
+    },
+    "Approval": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "批准"
+          }
+        }
+      }
+    },
+    "Permission": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限"
+          }
+        }
+      }
+    },
+    "needs your input": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你的输入"
+          }
+        }
+      }
+    },
+    "Working in %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在 %@ 中工作"
+          }
+        }
+      }
+    },
+    "Connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "Preset": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设"
+          }
+        }
+      }
+    },
+    "Custom": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定"
+          }
+        }
+      }
+    },
+    "Preset size": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设大小"
+          }
+        }
+      }
+    },
+    "Ollama API key": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama API 密钥"
+          }
+        }
+      }
+    },
+    "Paste your key": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴密钥"
+          }
+        }
+      }
+    },
+    "Save": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存"
+          }
+        }
+      }
+    },
+    "%@ %@ · via Ollama": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ · 来自 Ollama"
+          }
+        }
+      }
+    },
+    "Hidden from the notch · Loaded in Ollama": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已从刘海隐藏 · 仍加载在 Ollama"
+          }
+        }
+      }
+    },
+    "Show or hide this model in the notch. It stays loaded in Ollama.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在刘海里显示或隐藏此模型。它仍加载在 Ollama 中。"
+          }
+        }
+      }
+    },
+    "Thinking": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "思考中"
+          }
+        }
+      }
+    },
+    "%@ · Local": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 本地"
+          }
+        }
+      }
+    },
+    "No Ollama usage recorded yet for this period.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段时间还没有 Ollama 用量记录。"
+          }
+        }
+      }
+    },
+    "A system notification the moment a provider's headline limit crosses 80%, and again at 100% — once per crossing, and again only after the window rolls over. Mute one from the bell beside its row in Accounts.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当某家服务的主额度越过 80% 时发一条系统通知，100% 时再发一次 — 每次越过只发一次，要等额度窗口滚动过后才会再发。可在「账号」里该行旁边的铃铛上静音。"
+          }
+        }
+      }
+    },
+    "Codenotch already knows the moment an agent stops working or stops to ask you something. Clicking the notch while it is open brings that session's app to the front — the app, not the tab: only some terminals let anything outside them choose a tab, so the tooltip names the session instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codenotch 已经知道助手何时停下来、或停下来问你。刘海展开时点一下，会把那个会话的应用带到前台 — 是应用，不是标签页：只有部分终端允许外部选定标签，所以提示里会写会话名称。"
+          }
+        }
+      }
+    },
+    "The sound plays on the ordinary output, not the interface sound-effects channel — so it is still heard with “Play user interface sound effects” switched off in System Settings → Sound.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音走普通输出，不是界面音效通道 — 所以在系统设置 → 声音里关掉「播放用户界面声音效果」之后仍然听得见。"
+          }
+        }
+      }
+    },
+    "Lifetime tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "累计 token"
+          }
+        }
+      }
+    },
+    "Peak tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "峰值 token"
+          }
+        }
+      }
+    },
+    "Longest chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最长对话"
+          }
+        }
+      }
+    },
+    "Current streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前连续"
+          }
+        }
+      }
+    },
+    "Longest streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最长连续"
+          }
+        }
+      }
+    },
+    "Today": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日"
+          }
+        }
+      }
+    },
+    "30-day tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 天 token"
+          }
+        }
+      }
+    },
+    "Pending": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待出"
+          }
+        }
+      }
+    },
+    "Monitoring off.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未在监视。"
+          }
+        }
+      }
+    },
+    "Open Ollama": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Ollama"
+          }
+        }
+      }
+    },
+    "Server address": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器地址"
+          }
+        }
+      }
+    },
+    "Check connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查连接"
+          }
+        }
+      }
+    },
+    "Apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "Checking Ollama…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查 Ollama…"
+          }
+        }
+      }
+    },
+    "Connecting to Ollama…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接 Ollama…"
+          }
+        }
+      }
+    },
+    "Detected models appear in Accounts → Connected. Model loading and unloading is checked every second.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测到的模型会出现在「账号 → 已连接」。模型加载和卸载每秒检查一次。"
+          }
+        }
+      }
+    },
+    "Measure speed and thinking": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测量速度与思考"
+          }
+        }
+      }
+    },
+    "To measure responses, point your chat client to http://127.0.0.1:11435 and keep Codenotch open.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要测量回复，把聊天客户端指向 http://127.0.0.1:11435，并保持 Codenotch 打开。"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在启动…"
+          }
+        }
+      }
+    },
+    "Attached to the bottom screen edge. Option-drag to move left or right.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贴在屏幕下边缘。按住 ⌥ 拖动可左右移动。"
+          }
+        }
+      }
+    },
+    "Attached to the left-hand screen edge. Option-drag to move up or down.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贴在屏幕左边缘。按住 ⌥ 拖动可上下移动。"
+          }
+        }
+      }
+    },
+    "Attached to the right-hand screen edge. Option-drag to move up or down.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贴在屏幕右边缘。按住 ⌥ 拖动可上下移动。"
+          }
+        }
+      }
+    },
+    "%lldm": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分钟"
+          }
+        }
+      }
+    },
+    "%lldh %@m": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld小时%@分"
+          }
+        }
+      }
+    },
+    "Speaks Chinese, watches local models think, and stays welded to the edge.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会说中文，能看着本地模型思考，并且牢牢贴在边缘上。"
+          }
+        }
+      }
+    },
+    "简体中文": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简体中文"
+          }
+        }
+      }
+    },
+    "A Language picker in Appearance: follow the Mac, or hold the app to English or Simplified Chinese whatever the Mac is set to. Copy added since the translation was written falls back to English rather than going blank.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观里有了语言选择：跟随 Mac，或者不管 Mac 怎么设，都把应用固定成英文或简体中文。翻译写完之后新加的文案会回到英文，而不会变成空白。"
+          }
+        }
+      }
+    },
+    "Ollama models show thinking and generation speed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama 模型会显示思考和生成速度"
+          }
+        }
+      }
+    },
+    "Each loaded model gets its own cell, with the tokens per second of its last response and a mark while it is thinking. The measurement is taken locally and nothing about a prompt leaves the machine.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个已加载的模型有自己的一格，显示上次回复的每秒 token，思考时会有标记。测量在本地完成，提示词的任何内容都不会离开这台机器。"
+          }
+        }
+      }
+    },
+    "Claude Code sessions started from the desktop app are counted": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从桌面应用启动的 Claude Code 会话也会计入"
+          }
+        }
+      }
+    },
+    "A session launched from Claude for Mac now reaches the notch like any other. The sign-in also renews itself in the background, so a ring stops ageing out after a week of use.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Claude for Mac 启动的会话现在也会像其他会话一样出现在刘海上。登录也会在后台自己续期，圆环不会再用了一周就变旧。"
+          }
+        }
+      }
+    },
+    "The notch is welded to the screen edge": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刘海焊在屏幕边缘上"
+          }
+        }
+      }
+    },
+    "No hairline of wallpaper behind it at any size, and it stays anchored while the size slider is dragged instead of drifting and catching up at the end.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任何尺寸下，它后面都不再露出一条壁纸细缝；拖动尺寸滑块时它保持锚定，而不是先漂开、最后再追上。"
+          }
+        }
+      }
+    },
+    "Set the size by slider as well as by preset": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尺寸既能用预设，也能用滑块"
+          }
+        }
+      }
+    },
+    "Three named sizes for a decision made for you, or a slider when you have a particular size in mind.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "三种有名字的尺寸，适合不想自己拿主意的时候；心里有个特定尺寸，就用滑块。"
+          }
+        }
+      }
+    },
+    "The notch folds away for a full-screen app": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全屏应用时刘海会收起"
+          }
+        }
+      }
+    },
+    "Whatever is frontmost and full-screen gets the whole screen; the notch comes back when you leave it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前最前的全屏应用独占整块屏幕；离开之后刘海会回来。"
+          }
+        }
+      }
+    },
+    "The settings gear is a toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置齿轮是一个开关"
+          }
+        }
+      }
+    },
+    "It turns and presses in as it is clicked, and a second click closes Settings rather than doing nothing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点击时它会转动并按下去，再点一次会关掉设置，而不再没有反应。"
+          }
+        }
+      }
+    },
+    "Cursor stops showing work that finished months ago": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor 不再显示几个月前已经结束的工作"
+          }
+        }
+      }
+    },
+    "Finished background agents were leaving the ring amber indefinitely. Only a real, current chat counts as waiting now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经结束的后台智能体曾让圆环一直停在黄色。现在只有真正、当前的对话才算等待。"
+          }
+        }
+      }
+    },
+    "Antigravity reads a CLI-only install": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antigravity 能读取只有 CLI 的安装"
+          }
+        }
+      }
+    },
+    "An install with no desktop app is a real account rather than a missing one, and its daily quota is read directly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有桌面应用的安装也是一个真实账号，而不再算缺失，每日配额会直接读取。"
+          }
+        }
+      }
+    },
+    "A ready-made download, no Xcode needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载就能用，不需要 Xcode"
+          }
+        }
+      }
+    },
+    "Every build now produces an app bundle you can run, so trying Codenotch no longer starts with a developer setup.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次构建都会产出可以直接运行的应用包，试用 Codenotch 不必再从开发环境搭起。"
+          }
+        }
+      }
+    },
+    "Authorization": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authorization"
+          }
+        }
+      }
+    },
+    "Slow": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "较慢"
+          }
+        }
+      }
+    },
+    "%@ tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ token"
+          }
+        }
+      }
+    },
+    "API key": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 密钥"
+          }
+        }
+      }
+    },
+    "%@h limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 小时额度"
+          }
+        }
+      }
+    },
+    "Version %@. Updates are disabled for this custom fork.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@。此定制版已关闭上游自动更新。"
+          }
+        }
+      }
+    },
     "just now": {
       "extractionState": "manual",
       "localizations": {
